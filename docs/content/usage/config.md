@@ -21,5 +21,4 @@ Hermit supports three different manifest sources:
 1. Git repositories; any cloneable URI ending with `.git`, eg.<br/>`https://github.com/cashapp/hermit-packages.git`. An optional `#<tag>` suffix can be added to checkout a specific tag.
 2. Local filesystem, eg. `file:///home/user/my-packages`.<br/>This is mostly only useful for local development and testing.
 3. Environment relative, eg. `env:///my-packages`.<br/>This will search for package manifests in the directory `${HERMIT_ENV}/my-packages`. Useful for local overrides.
-
-	
+4. Inline, e.g. `inline:{"example":{"description":"Description for example", ..., "channel": {"unstable": {"update: "5m", ...}}`.<br/>This will parse the body as a json map encoding package name to package configuration.
