@@ -74,7 +74,6 @@ func (f *StateTestFixture) State() *state.State {
 			Builtin: sources.NewBuiltInSource(vfs.InMemoryFS(nil)),
 		},
 		0,
-		nil,
 		cache,
 	)
 	require.NoError(f.t, err)

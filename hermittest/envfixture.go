@@ -59,7 +59,6 @@ func NewEnvTestFixture(t *testing.T, handler http.Handler) *EnvTestFixture {
 			Builtin: sources.NewBuiltInSource(vfs.InMemoryFS(nil)),
 		},
 		0,
-		nil,
 		cache,
 	)
 	require.NoError(t, err)

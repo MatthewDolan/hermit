@@ -239,7 +239,6 @@ func Main(config Config) {
 		hermit.UserStateDir,
 		config.State,
 		cli.getLockTimeout(),
-		cli.getAdditionalSources(),
 		cache,
 	)
 	if err != nil {

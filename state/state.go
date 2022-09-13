@@ -70,22 +70,11 @@ func Open(
 	stateDir string,
 	config Config,
 	lockTimeout time.Duration,
-	additionalSources []string,
 	cache *cache.Cache,
 ) (*State, error) {
 	if config.Builtin == nil {
 		return nil, errors.Errorf("state.Config.Builtin not provided")
 	}
-
-	// Note. Set default sources before applying additional sources so that the
-	// defaulting behavior doesn't change depending on if additional sources are applied.
-	// The default sources shouldn't disappear if additional sources are supplied.
-	sources := config.Sources
-	if sources == nil {
-		sources = DefaultSources
-	}
-	// Note. Pre-pend additional sources so that they are earlier in the list.
-	sources = append(additionalSources, sources...)
 
 	pkgDir := filepath.Join(stateDir, "pkg")
 	cacheDir := filepath.Join(stateDir, "cache")
@@ -94,6 +83,10 @@ func Open(
 	dao, err := dao.Open(stateDir)
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+	sources := config.Sources
+	if sources == nil {
+		sources = DefaultSources
 	}
 
 	autoMirrors, err := validateAndCompileAutoMirrors(config)
