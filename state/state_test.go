@@ -1,6 +1,7 @@
 package state_test
 
 import (
+	"github.com/cashapp/hermit/manifest/actions"
 	"io"
 	"net/http"
 	"os"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/manifest/manifesttest"
 	"github.com/cashapp/hermit/ui"
 )
@@ -56,7 +56,7 @@ func TestCacheAndUnpackHooksRunOnMutablePackage(t *testing.T) {
 
 	log, _ := ui.NewForTesting()
 	pkg := manifesttest.NewPkgBuilder(state.PkgDir()).
-		WithTrigger(manifest.EventUnpack, &manifest.RenameAction{
+		WithTrigger(actions.EventUnpack, &actions.RenameAction{
 			From: filepath.Join(state.PkgDir(), "file"),
 			To:   filepath.Join(state.PkgDir(), "file_renamed"),
 		}).

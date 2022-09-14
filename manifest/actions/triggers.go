@@ -1,4 +1,4 @@
-package manifest
+package actions
 
 import (
 	"sort"
@@ -71,7 +71,7 @@ func (a *Trigger) Ordered() []Action {
 		out = append(out, action)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].position().Line < out[j].position().Line
+		return out[i].Position().Line < out[j].Position().Line
 	})
 	return out
 }

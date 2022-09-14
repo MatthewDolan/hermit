@@ -4,6 +4,7 @@ import (
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/ui"
 )
 
@@ -25,7 +26,7 @@ func (t *testCmd) Run(l *ui.UI, env *hermit.Env) error {
 			l.Warnf("%s: %s", selector, warning)
 		}
 		pkg, err := env.Resolve(l, selector, false)
-		if errors.Is(err, manifest.ErrNoSource) {
+		if errors.Is(err, resolver.ErrNoSource) {
 			l.Warnf("No sources found for package %s on this architecture. Skipping the test", selector)
 			continue
 		}

@@ -2,11 +2,11 @@ package app
 
 import (
 	"fmt"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"regexp"
 
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/errors"
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
 )
@@ -30,7 +30,7 @@ type searchResult struct {
 
 // buildSearchResult constructs a search result from packages with same name
 // p is an array expected to be package with same name
-func buildSearchResult(p []*manifest.Package) *searchResult {
+func buildSearchResult(p []*resolver.Package) *searchResult {
 	out := &searchResult{
 		Versions: make([]string, 0),
 		Channels: make([]string, 0),
@@ -58,7 +58,7 @@ func buildSearchResult(p []*manifest.Package) *searchResult {
 	return out
 }
 
-func buildSearchJSONResults(byName map[string][]*manifest.Package, names []string) interface{} {
+func buildSearchJSONResults(byName map[string][]*resolver.Package, names []string) interface{} {
 	packages := make([]*searchResult, 0)
 
 	for _, name := range names {
@@ -72,7 +72,7 @@ func buildSearchJSONResults(byName map[string][]*manifest.Package, names []strin
 
 func (s *searchCmd) Run(l *ui.UI, env *hermit.Env, state *state.State) error {
 	var (
-		pkgs manifest.Packages
+		pkgs resolver.Packages
 		err  error
 	)
 	pattern := s.Pattern

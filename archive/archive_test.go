@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"github.com/cashapp/hermit/manifest/resolver"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -9,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/ui"
 )
 
@@ -43,7 +43,7 @@ func TestExtract(t *testing.T) {
 			finalise, err := Extract(
 				p.Task("extract"),
 				filepath.Join("testdata", test.file),
-				&manifest.Package{Dest: dest, Source: test.file},
+				&resolver.Package{Dest: dest, Source: test.file},
 			)
 			require.NoError(t, err)
 			require.NoError(t, finalise())

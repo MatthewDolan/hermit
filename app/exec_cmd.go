@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/cashapp/hermit/manifest/resolver"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -72,7 +73,7 @@ func (e *execCmd) Run(l *ui.UI, cache *cache.Cache, sta *state.State, env *hermi
 
 	// Collect dependencies we might have to install
 	// if they are not in the cache
-	deps := map[string]*manifest.Package{}
+	deps := map[string]*resolver.Package{}
 	err = env.ResolveWithDeps(l, installed, manifest.ExactSelector(pkg.Reference), deps)
 	if err != nil {
 		return errors.WithStack(err)

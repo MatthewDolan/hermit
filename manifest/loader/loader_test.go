@@ -1,4 +1,4 @@
-package manifest
+package loader
 
 import (
 	"os"
@@ -19,9 +19,9 @@ func TestLoader(t *testing.T) {
 	})
 	loader := NewLoader(srcs)
 	require.Len(t, srcs.Sources(), 1)
-	manifest, err := loader.Load(l, "protoc")
+	loaded, err := loader.Load(l, "protoc")
 	require.NoError(t, err)
-	require.Equal(t, "protoc is a compiler for protocol buffers definitions files.", manifest.Description)
+	require.Equal(t, "protoc is a compiler for protocol buffers definitions files.", loaded.Description)
 
 	manifests, err := loader.All()
 	require.NoError(t, err)

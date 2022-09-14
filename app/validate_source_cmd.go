@@ -1,12 +1,13 @@
 package app
 
 import (
+	"github.com/cashapp/hermit/manifest/loader"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"runtime"
 	"strconv"
 
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/errors"
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
@@ -20,7 +21,7 @@ func (g *validateSourceCmd) Run(l *ui.UI, env *hermit.Env, sta *state.State) err
 	var (
 		srcs    *sources.Sources
 		err     error
-		merrors manifest.ManifestErrors
+		merrors loader.ManifestErrors
 	)
 	if env != nil && g.Source == "" {
 		merrors, err = env.ValidateManifests(l)
@@ -32,7 +33,7 @@ func (g *validateSourceCmd) Run(l *ui.UI, env *hermit.Env, sta *state.State) err
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		resolver, err := manifest.New(srcs, manifest.Config{
+		resolver, err := resolver.New(srcs, resolver.Config{
 			State: sta.Root(),
 			OS:    runtime.GOOS,
 			Arch:  runtime.GOARCH,

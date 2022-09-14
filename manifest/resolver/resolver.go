@@ -1,7 +1,8 @@
-package manifest
+package resolver
 
 import (
 	"fmt"
+	"github.com/cashapp/hermit/manifest/actions"
 	"io/fs"
 	"os"
 	"path"
@@ -13,12 +14,13 @@ import (
 	"time"
 
 	"github.com/alecthomas/participle"
-	"github.com/gobwas/glob"
 	"github.com/qdm12/reprint"
 
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/internal/system"
+	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/loader"
 	"github.com/cashapp/hermit/platform"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/ui"
@@ -73,12 +75,12 @@ type Package struct {
 	Description          string
 	Homepage             string
 	Repository           string
-	Reference            Reference
+	Reference            manifest.Reference
 	Arch                 string
 	Binaries             []string
 	Apps                 []string
 	Requires             []string
-	RuntimeDeps          []Reference
+	RuntimeDeps          []manifest.Reference
 	Provides             []string
 	Env                  envars.Ops
 	Source               string
@@ -89,18 +91,28 @@ type Package struct {
 	Dest                 string
 	Test                 string
 	Strip                int
-	Triggers             map[Event][]Action  `json:"-"` // Triggers keyed by event.
-	UpdateInterval       time.Duration       // How often should we check for updates? 0, if never
-	Files                []*ResolvedFileRef  `json:"-"`
-	FS                   fs.FS               `json:"-"` // FS the Package was loaded from.
-	Warnings             []string            `json:"-"`
-	UnsupportedPlatforms []platform.Platform // Unsupported core platforms
+	Triggers             map[actions.Event][]actions.Action `json:"-"` // Triggers keyed by event.
+	UpdateInterval       time.Duration                      // How often should we check for updates? 0, if never
+	Files                []*ResolvedFileRef                 `json:"-"`
+	FS                   fs.FS                              `json:"-"` // FS the Package was loaded from.
+	Warnings             []string                           `json:"-"`
+	UnsupportedPlatforms []platform.Platform                // Unsupported core platforms
 
 	// Filled in by Env.
 	Linked    bool `json:"-"` // Linked into environment.
-	State     PackageState
+	State     manifest.PackageState
 	ETag      string
 	UpdatedAt time.Time
+}
+
+// GetFS returns the FS of the package (implements loader.Package method).
+func (p *Package) GetFS() fs.FS {
+	return p.FS
+}
+
+// RootDir returns the rood directory of the package (implements loader.Package method).
+func (p *Package) RootDir() string {
+	return p.Root
 }
 
 func (p *Package) String() string {
@@ -108,10 +120,10 @@ func (p *Package) String() string {
 }
 
 // Trigger triggers an event in this package. Noop if the event is not defined for the package
-func (p *Package) Trigger(l ui.Logger, event Event) (messages []string, err error) {
+func (p *Package) Trigger(l ui.Logger, event actions.Event) (messages []string, err error) {
 	for _, action := range p.Triggers[event] {
 		l.Debugf("%s", action)
-		if msg, ok := action.(*MessageAction); ok {
+		if msg, ok := action.(*actions.MessageAction); ok {
 			messages = append(messages, msg.Text)
 		} else if err := action.Apply(p); err != nil {
 			return nil, errors.WithStack(err)
@@ -173,7 +185,7 @@ func (p *Package) EnsureSupported() error {
 type Resolver struct {
 	config  Config
 	sources *sources.Sources
-	loader  *Loader
+	loader  *loader.Loader
 }
 
 // New constructs a new package loader.
@@ -187,18 +199,18 @@ func New(sources *sources.Sources, config Config) (*Resolver, error) {
 	return &Resolver{
 		config:  config,
 		sources: sources,
-		loader:  NewLoader(sources),
+		loader:  loader.NewLoader(sources),
 	}, nil
 }
 
 // LoadAll manifests.
 func (r *Resolver) LoadAll() error {
 	_, err := r.loader.All()
-	return err
+	return errors.Wrapf(err, "error loading all manifests")
 }
 
 // Errors returns all errors encountered _so far_ by the Loader.
-func (r *Resolver) Errors() ManifestErrors {
+func (r *Resolver) Errors() loader.ManifestErrors {
 	return r.loader.Errors()
 }
 
@@ -211,7 +223,7 @@ func (r *Resolver) Sync(l *ui.UI, force bool) error {
 	if err := r.sources.Sync(l, force); err != nil {
 		return errors.WithStack(err)
 	}
-	r.loader = NewLoader(r.sources)
+	r.loader = loader.NewLoader(r.sources)
 	return nil
 }
 
@@ -226,28 +238,28 @@ func (r *Resolver) Search(l ui.Logger, pattern string) (Packages, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	for _, manifest := range manifests {
-		if !re.MatchString(manifest.Name) {
+	for _, m := range manifests {
+		if !re.MatchString(m.Name) {
 			continue
 		}
-		for _, version := range manifest.Versions {
+		for _, version := range m.Versions {
 			for _, vstr := range version.Version {
-				ref := Reference{Name: manifest.Name, Version: ParseVersion(vstr)}
+				ref := manifest.Reference{Name: m.Name, Version: manifest.ParseVersion(vstr)}
 				// If the reference doesn't resolve, discard it.
-				pkg, err := newPackage(manifest, r.config, ExactSelector(ref))
+				pkg, err := newPackage(m, r.config, manifest.ExactSelector(ref))
 				if errors.Is(err, ErrNoSource) || errors.Is(err, ErrNoBinaries) || err == nil {
 					pkgs = append(pkgs, pkg)
 				} else {
-					l.Warnf("invalid manifest reference %s in %s.hcl: %s", ref, manifest.Name, err)
+					l.Warnf("invalid manifest reference %s in %s.hcl: %s", ref, m.Name, err)
 					continue
 				}
 			}
 		}
-		for _, channel := range manifest.Channels {
-			name := filepath.Base(strings.TrimSuffix(manifest.Path, ".hcl"))
-			ref := Reference{name, Version{}, channel.Name}
+		for _, channel := range m.Channels {
+			name := filepath.Base(strings.TrimSuffix(m.Path, ".hcl"))
+			ref := manifest.Reference{name, manifest.Version{}, channel.Name}
 			// If the reference doesn't resolve, discard it.
-			pkg, err := newPackage(manifest, r.config, ExactSelector(ref))
+			pkg, err := newPackage(m, r.config, manifest.ExactSelector(ref))
 			if err != nil {
 				l.Warnf("invalid manifest reference %s in %s.hcl: %s", ref, name, err)
 				continue
@@ -265,23 +277,23 @@ func (r *Resolver) ResolveVirtual(name string) (pkgs []*Package, err error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	var providers []*AnnotatedManifest
-	for _, manifest := range manifests {
-		for _, provides := range manifest.Provides {
+	var providers []*loader.AnnotatedManifest
+	for _, m := range manifests {
+		for _, provides := range m.Provides {
 			if provides == name {
-				providers = append(providers, manifest)
+				providers = append(providers, m)
 			}
 		}
 	}
 	if len(providers) == 0 {
 		return nil, errors.Wrapf(ErrUnknownPackage, "unable to resolve virtual package %q", name)
 	}
-	for _, manifest := range providers {
-		pkg, err := newPackage(manifest, r.config, NameSelector(name))
+	for _, m := range providers {
+		pkg, err := newPackage(m, r.config, manifest.NameSelector(name))
 		if err != nil {
 			return nil, err
 		}
-		pkg.Reference = ParseReference(manifest.Name)
+		pkg.Reference = manifest.ParseReference(m.Name)
 		pkgs = append(pkgs, pkg)
 	}
 	return pkgs, nil
@@ -290,18 +302,18 @@ func (r *Resolver) ResolveVirtual(name string) (pkgs []*Package, err error) {
 // Resolve a package reference.
 //
 // Returns the highest version matching the given reference
-func (r *Resolver) Resolve(l *ui.UI, selector Selector) (pkg *Package, err error) {
-	manifest, err := r.loader.Load(l, selector.Name())
+func (r *Resolver) Resolve(l *ui.UI, selector manifest.Selector) (pkg *Package, err error) {
+	m, err := r.loader.Load(l, selector.Name())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return newPackage(manifest, r.config, selector)
+	return newPackage(m, r.config, selector)
 }
 
-func matchVersion(manifest *AnnotatedManifest, selector Selector) (collected References, selected Reference) {
-	for _, v := range manifest.Versions {
+func matchVersion(m *loader.AnnotatedManifest, selector manifest.Selector) (collected manifest.References, selected manifest.Reference) {
+	for _, v := range m.Versions {
 		for _, vstr := range v.Version {
-			candidate := Reference{Name: selector.Name(), Version: ParseVersion(vstr)}
+			candidate := manifest.Reference{Name: selector.Name(), Version: manifest.ParseVersion(vstr)}
 			collected = append(collected, candidate)
 			if selector.Matches(candidate) && (!selected.IsSet() || selected.Less(candidate)) {
 				selected = candidate
@@ -311,9 +323,9 @@ func matchVersion(manifest *AnnotatedManifest, selector Selector) (collected Ref
 	return
 }
 
-func matchChannel(manifest *AnnotatedManifest, selector Selector) (collected References, foundUpdateInterval time.Duration, selected Reference) {
-	for _, ch := range manifest.Channels {
-		candidate := Reference{Name: selector.Name(), Channel: ch.Name}
+func matchChannel(m *loader.AnnotatedManifest, selector manifest.Selector) (collected manifest.References, foundUpdateInterval time.Duration, selected manifest.Reference) {
+	for _, ch := range m.Channels {
+		candidate := manifest.Reference{Name: selector.Name(), Channel: ch.Name}
 		collected = append(collected, candidate)
 		if selector.Matches(candidate) {
 			selected = candidate
@@ -323,13 +335,13 @@ func matchChannel(manifest *AnnotatedManifest, selector Selector) (collected Ref
 	return
 }
 
-func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (*Package, error) {
+func newPackage(m *loader.AnnotatedManifest, config Config, selector manifest.Selector) (*Package, error) {
 	// If a version was not specified and the manifest defines a default, use it.
-	if !selector.IsFullyQualified() && manifest.Default != "" {
-		if strings.HasPrefix(manifest.Default, "@") {
-			selector = ExactSelector(Reference{Name: manifest.Name, Channel: manifest.Default[1:]})
+	if !selector.IsFullyQualified() && m.Default != "" {
+		if strings.HasPrefix(m.Default, "@") {
+			selector = manifest.ExactSelector(manifest.Reference{Name: m.Name, Channel: m.Default[1:]})
 		} else {
-			m, err := ParseGlobSelector(manifest.Name + "-" + manifest.Default)
+			m, err := manifest.ParseGlobSelector(m.Name + "-" + m.Default)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -338,15 +350,15 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 	}
 
 	// Clone the entire manifest, as we mutate stuff.
-	manifest = reprint.This(manifest).(*AnnotatedManifest)
+	m = reprint.This(m).(*loader.AnnotatedManifest)
 	// Resolve version in manifest from ref.
 	var foundUpdateInterval time.Duration
 	// Search versions first.
-	allRefs, found := matchVersion(manifest, selector)
+	allRefs, found := matchVersion(m, selector)
 	// Then channels if no match.
 	if !found.IsSet() {
-		var channelRefs References
-		channelRefs, foundUpdateInterval, found = matchChannel(manifest, selector)
+		var channelRefs manifest.References
+		channelRefs, foundUpdateInterval, found = matchChannel(m, selector)
 		allRefs = append(allRefs, channelRefs...)
 	}
 	if len(allRefs) == 0 {
@@ -374,47 +386,47 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 			for _, ver := range knownVersions {
 				if ver == tryVersion {
 					return nil, errors.Wrapf(ErrUnknownPackage, "%s: no channel %s found, did you mean version %s?",
-						manifest.Path, selector, tryVersion)
+						m.Path, selector, tryVersion)
 				}
 			}
 			return nil, errors.Wrapf(ErrUnknownPackage, "%s: no channel %s found in channels (%s) or versions (%s)",
-				manifest.Path, selector, strings.Join(knownChannels, ", "), strings.Join(knownVersions, ", "))
+				m.Path, selector, strings.Join(knownChannels, ", "), strings.Join(knownVersions, ", "))
 		}
 		return nil, errors.Wrapf(ErrUnknownPackage, "%s: no version %s found in versions (%s) or channels (%s)",
-			manifest.Path, selector, strings.Join(knownVersions, ", "), strings.Join(knownChannels, ", "))
+			m.Path, selector, strings.Join(knownVersions, ", "), strings.Join(knownChannels, ", "))
 	}
 
 	root := filepath.Join(config.State, "pkg", found.String())
 	p := &Package{
-		Description:          manifest.Description,
-		Homepage:             manifest.Homepage,
-		Repository:           manifest.Repository,
+		Description:          m.Description,
+		Homepage:             m.Homepage,
+		Repository:           m.Repository,
 		Reference:            found,
 		Root:                 "${dest}",
 		Dest:                 root,
-		Triggers:             map[Event][]Action{},
+		Triggers:             map[actions.Event][]actions.Action{},
 		UpdateInterval:       foundUpdateInterval,
 		Files:                []*ResolvedFileRef{},
-		FS:                   manifest.FS,
-		UnsupportedPlatforms: manifest.unsupported(found, platform.Core),
+		FS:                   m.FS,
+		UnsupportedPlatforms: m.Unsupported(found, platform.Core),
 	}
 
 	files := map[string]string{}
 
 	// Merge all the layers.
-	layers, err := manifest.layers(found, config.OS, config.Arch)
+	layers, err := m.Layers(found, config.OS, config.Arch)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	if found.IsChannel() {
-		channel := manifest.ChannelByName(found.Channel)
+		channel := m.ChannelByName(found.Channel)
 		if channel != nil && channel.Version != "" {
-			g, err := ParseGlob(channel.Version)
+			g, err := manifest.ParseGlob(channel.Version)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
-			_, version := manifest.HighestMatch(g)
+			_, version := m.HighestMatch(g)
 			if version == nil {
 				return nil, errors.Errorf("no matching version found for channel %s", found)
 			}
@@ -475,7 +487,7 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 		}
 		if len(layer.RuntimeDeps) > 0 {
 			for _, dep := range layer.RuntimeDeps {
-				ref := ParseReference(dep)
+				ref := manifest.ParseReference(dep)
 				p.RuntimeDeps = append(p.RuntimeDeps, ref)
 			}
 		}
@@ -485,10 +497,10 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 	}
 	// Verify.
 	if len(p.Binaries) == 0 && len(p.Apps) == 0 {
-		return p, errors.Wrapf(ErrNoBinaries, "%s: %s", manifest.Path, found)
+		return p, errors.Wrapf(ErrNoBinaries, "%s: %s", m.Path, found)
 	}
 	if p.Source == "" {
-		return p, errors.Wrapf(ErrNoSource, "%s: %s", manifest.Path, found)
+		return p, errors.Wrapf(ErrNoSource, "%s: %s", m.Path, found)
 	}
 
 	// Expand variables.
@@ -510,10 +522,10 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 				return found.Version.String()
 
 			case "dest":
-				return layers.field("Dest", p.Dest).(string)
+				return layers.Field("Dest", p.Dest).(string)
 
 			case "root":
-				return layers.field("Root", p.Root).(string)
+				return layers.Field("Root", p.Root).(string)
 
 			case "HERMIT_ENV", "env":
 				return config.Env
@@ -583,7 +595,7 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 		sort.Slice(ops, func(i, j int) bool { return ops[i].Envar() < ops[j].Envar() })
 		p.Env = append(p.Env, ops...)
 	}
-	p.Strip = layers.field("Strip", 0).(int)
+	p.Strip = layers.Field("Strip", 0).(int)
 	p.Dest = expand(p.Dest, false)
 	p.Root = expand(p.Root, false)
 	p.Test = expand(p.Test, false)
@@ -609,11 +621,11 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 			p.SHA256 = sum
 		}
 	}
-	inferPackageRepository(p, manifest.Manifest)
-	for _, actions := range p.Triggers {
-		for _, action := range actions {
+	inferPackageRepository(p, m.Manifest)
+	for _, trigger := range p.Triggers {
+		for _, action := range trigger {
 			switch action := action.(type) {
-			case *RunAction:
+			case *actions.RunAction:
 				for i, env := range action.Env {
 					action.Env[i] = expand(env, false)
 				}
@@ -629,20 +641,20 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 					return nil, err
 				}
 
-			case *CopyAction:
+			case *actions.CopyAction:
 				action.From = expand(action.From, false)
 				action.To = expand(action.To, false)
 				if err := mustAbs(action, action.To); err != nil {
 					return nil, err
 				}
 
-			case *ChmodAction:
+			case *actions.ChmodAction:
 				action.File = expand(action.File, false)
 				if err := mustAbs(action, action.File); err != nil {
 					return nil, err
 				}
 
-			case *RenameAction:
+			case *actions.RenameAction:
 				action.From = expand(action.From, false)
 				if err := mustAbs(action, action.From); err != nil {
 					return nil, err
@@ -652,7 +664,7 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 					return nil, err
 				}
 
-			case *DeleteAction:
+			case *actions.DeleteAction:
 				for i := range action.Files {
 					action.Files[i] = expand(action.Files[i], false)
 					if err := mustAbs(action, action.Files[i]); err != nil {
@@ -660,7 +672,7 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 					}
 				}
 
-			case *MessageAction:
+			case *actions.MessageAction:
 				action.Text = expand(action.Text, false)
 
 			default:
@@ -676,14 +688,14 @@ func newPackage(manifest *AnnotatedManifest, config Config, selector Selector) (
 	for k, v := range files {
 		files[k] = expand(v, false)
 	}
-	err = resolveFiles(manifest, p, files)
+	err = resolveFiles(m, p, files)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return p, err
 }
 
-func inferPackageRepository(p *Package, manifest *Manifest) {
+func inferPackageRepository(p *Package, m *manifest.Manifest) {
 	// start infer from source if no repository is given
 	if p == nil || p.Repository != "" || p.Source == "" {
 		return
@@ -691,8 +703,8 @@ func inferPackageRepository(p *Package, manifest *Manifest) {
 
 	githubComPrefix := "https://github.com/"
 
-	if manifest != nil {
-		for _, v := range manifest.Versions {
+	if m != nil {
+		for _, v := range m.Versions {
 			if v.AutoVersion != nil && v.AutoVersion.GitHubRelease != "" {
 				p.Repository = fmt.Sprintf("%s%s", githubComPrefix, v.AutoVersion.GitHubRelease)
 				return
@@ -717,70 +729,13 @@ func inferPackageRepository(p *Package, manifest *Manifest) {
 	p.Repository = result
 }
 
-// HighestMatch returns the VersionBlock with highest version number matching the given Glob
-func (m *Manifest) HighestMatch(to glob.Glob) (result *VersionBlock, highest *Version) {
-	versions := m.Versions
-	for _, v := range versions {
-		block := v
-		for _, vstr := range v.Version {
-			parsed := ParseVersion(vstr)
-			if to.Match(vstr) && (highest == nil || highest.Less(parsed)) {
-				highest = &parsed
-				result = &block
-			}
-		}
-	}
-	return
-}
-
-// ChannelByName returns the channel with the given name, or nil if not found
-func (m *Manifest) ChannelByName(name string) *ChannelBlock {
-	for _, c := range m.Channels {
-		if c.Name == name {
-			return &c
-		}
-	}
-	return nil
-}
-
-// Verify that there are no semantic errors in the manifest
-func (m *Manifest) validate() []error {
-	var (
-		result   []error
-		versions = m.Versions
-	)
-
-	for _, channel := range m.Channels {
-		if channel.Version != "" {
-			g, err := ParseGlob(channel.Version)
-			if err != nil {
-				result = append(result, errors.Errorf("@%s: invalid glob: %s", channel.Name, err))
-			}
-			found := false
-			for _, v := range versions {
-				for _, version := range v.Version {
-					if g.Match(ParseVersion(version).String()) {
-						found = true
-						break
-					}
-				}
-			}
-			if !found {
-				result = append(result, errors.Errorf("@%s: no version found matching %s", channel.Name, channel.Version))
-			}
-		}
-	}
-
-	return result
-}
-
-func resolveFiles(manifest *AnnotatedManifest, pkg *Package, files map[string]string) error {
+func resolveFiles(m *loader.AnnotatedManifest, pkg *Package, files map[string]string) error {
 	if len(files) == 0 {
 		return nil
 	}
 
 	for k, v := range files {
-		f, err := manifest.FS.Open(k)
+		f, err := m.FS.Open(k)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -790,7 +745,7 @@ func resolveFiles(manifest *AnnotatedManifest, pkg *Package, files map[string]st
 		}
 		pkg.Files = append(pkg.Files, &ResolvedFileRef{
 			FromPath: k,
-			FS:       manifest.FS,
+			FS:       m.FS,
 			ToPAth:   v,
 		})
 	}
@@ -798,9 +753,9 @@ func resolveFiles(manifest *AnnotatedManifest, pkg *Package, files map[string]st
 }
 
 // mustAbs ensures that "path" is either empty or an absolute file path, after expansion.
-func mustAbs(action Action, path string) error {
+func mustAbs(action actions.Action, path string) error {
 	if path == "" || filepath.IsAbs(path) {
 		return nil
 	}
-	return participle.Errorf(action.position(), "%q must be an absolute path", path)
+	return participle.Errorf(action.Position(), "%q must be an absolute path", path)
 }

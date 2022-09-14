@@ -2,6 +2,8 @@ package state
 
 import (
 	"context"
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -135,7 +137,7 @@ func validateAndCompileAutoMirrors(config Config) ([]precompiledAutoMirror, erro
 }
 
 // Resolve package reference without an active environment.
-func (s *State) Resolve(l *ui.UI, mathcer manifest.Selector) (*manifest.Package, error) {
+func (s *State) Resolve(l *ui.UI, mathcer manifest.Selector) (*resolver.Package, error) {
 	resolver, err := s.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -144,7 +146,7 @@ func (s *State) Resolve(l *ui.UI, mathcer manifest.Selector) (*manifest.Package,
 }
 
 // Search for packages without an active environment.
-func (s *State) Search(l *ui.UI, glob string) (manifest.Packages, error) {
+func (s *State) Search(l *ui.UI, glob string) (resolver.Packages, error) {
 	resolver, err := s.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -181,12 +183,12 @@ func (s *State) BinaryDir() string {
 	return s.binaryDir
 }
 
-func (s *State) resolver(l *ui.UI) (*manifest.Resolver, error) {
+func (s *State) resolver(l *ui.UI) (*resolver.Resolver, error) {
 	ss, err := s.Sources(l)
 	if err != nil {
 		return nil, err
 	}
-	return manifest.New(ss, manifest.Config{
+	return resolver.New(ss, resolver.Config{
 		State: s.Root(),
 		OS:    runtime.GOOS,
 		Arch:  runtime.GOARCH,
@@ -215,7 +217,7 @@ func (s *State) acquireLock(log ui.Logger) (*util.FileLock, error) {
 }
 
 // ReadPackageState updates the package fields from the global database
-func (s *State) ReadPackageState(pkg *manifest.Package) {
+func (s *State) ReadPackageState(pkg *resolver.Package) {
 	if _, err := os.Stat(pkg.Root); err == nil {
 		pkg.State = manifest.PackageStateInstalled
 	} else if s.cache.IsCached(pkg.SHA256, pkg.Source) {
@@ -232,7 +234,7 @@ func (s *State) ReadPackageState(pkg *manifest.Package) {
 }
 
 // WritePackageState updates the fields and usage time stamp of the given package
-func (s *State) WritePackageState(p *manifest.Package) error {
+func (s *State) WritePackageState(p *resolver.Package) error {
 	var updatedAt = time.Time{}
 	if p.UpdateInterval > 0 {
 		updatedAt = p.UpdatedAt
@@ -279,7 +281,7 @@ func (s *State) removeRecursive(b *ui.Task, dest string) error {
 
 // CacheAndUnpack downloads a package and extracts it if it is not present.
 // If the package has already been extracted, this is a no-op
-func (s *State) CacheAndUnpack(b *ui.Task, p *manifest.Package) error {
+func (s *State) CacheAndUnpack(b *ui.Task, p *resolver.Package) error {
 	// Check if the package is up-to-date, and if so, return before acquiring the lock
 	if (s.isExtracted(p) && s.areBinariesLinked(p)) || p.Source == "/" {
 		return nil
@@ -306,7 +308,7 @@ func (s *State) CacheAndUnpack(b *ui.Task, p *manifest.Package) error {
 	return nil
 }
 
-func (s *State) linkBinaries(p *manifest.Package) error {
+func (s *State) linkBinaries(p *resolver.Package) error {
 	dir := filepath.Join(s.binaryDir, p.Reference.String())
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return errors.WithStack(err)
@@ -326,7 +328,7 @@ func (s *State) linkBinaries(p *manifest.Package) error {
 	return nil
 }
 
-func (s *State) extract(b *ui.Task, p *manifest.Package) error {
+func (s *State) extract(b *ui.Task, p *resolver.Package) error {
 	var (
 		path string
 		etag string
@@ -355,23 +357,23 @@ func (s *State) extract(b *ui.Task, p *manifest.Package) error {
 			return errors.WithStack(err)
 		}
 	}
-	if _, err = p.Trigger(b, manifest.EventUnpack); err != nil {
+	if _, err = p.Trigger(b, actions.EventUnpack); err != nil {
 		_ = os.RemoveAll(p.Dest)
 		return errors.WithStack(err)
 	}
 	return errors.WithStack(finalise())
 }
 
-func (s *State) isCached(p *manifest.Package) bool {
+func (s *State) isCached(p *resolver.Package) bool {
 	return s.cache.IsCached(p.SHA256, p.Source)
 }
 
-func (s *State) isExtracted(p *manifest.Package) bool {
+func (s *State) isExtracted(p *resolver.Package) bool {
 	_, err := os.Stat(p.Root)
 	return err == nil
 }
 
-func (s *State) areBinariesLinked(p *manifest.Package) bool {
+func (s *State) areBinariesLinked(p *resolver.Package) bool {
 	_, err := os.Stat(filepath.Join(s.binaryDir, p.Reference.String()))
 	return err == nil
 }
@@ -428,7 +430,7 @@ func (s *State) CleanCache(b ui.Logger) error {
 // UpgradeChannel checks if the given binary has changed in its channel, and if so, downloads it.
 //
 // If the channel is upgraded this will return a clone of the updated manifest.
-func (s *State) UpgradeChannel(b *ui.Task, pkg *manifest.Package) error {
+func (s *State) UpgradeChannel(b *ui.Task, pkg *resolver.Package) error {
 	if !pkg.Reference.IsChannel() {
 		panic("UpgradeChannel can only be used with channel packages")
 	}
@@ -466,7 +468,7 @@ func (s *State) UpgradeChannel(b *ui.Task, pkg *manifest.Package) error {
 	return errors.WithStack(s.dao.UpdatePackage(name, dpkg))
 }
 
-func (s *State) removePackage(task *ui.Task, pkg *manifest.Package) error {
+func (s *State) removePackage(task *ui.Task, pkg *resolver.Package) error {
 	err := s.removeRecursive(task, filepath.Join(s.binaryDir, pkg.Reference.String()))
 	if err != nil {
 		return errors.WithStack(err)
@@ -479,7 +481,7 @@ func (s *State) removePackage(task *ui.Task, pkg *manifest.Package) error {
 	return nil
 }
 
-func (s *State) evictPackage(b *ui.Task, pkg *manifest.Package) error {
+func (s *State) evictPackage(b *ui.Task, pkg *resolver.Package) error {
 	lock, err := s.acquireLock(b)
 	if err != nil {
 		return errors.WithStack(err)

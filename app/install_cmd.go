@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"os"
 
 	"github.com/cashapp/hermit"
@@ -29,7 +31,7 @@ func (i *installCmd) Run(l *ui.UI, env *hermit.Env, state *state.State) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	pkgs := map[string]*manifest.Package{}
+	pkgs := map[string]*resolver.Package{}
 	selectors := i.Packages
 
 	err = env.Update(l, false)
@@ -88,7 +90,7 @@ func (i *installCmd) Run(l *ui.UI, env *hermit.Env, state *state.State) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		messages, err := env.TriggerForPackage(l, manifest.EventInstall, pkg)
+		messages, err := env.TriggerForPackage(l, actions.EventInstall, pkg)
 		if err != nil {
 			return errors.WithStack(err)
 		}

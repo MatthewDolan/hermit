@@ -6,6 +6,9 @@ import (
 	"embed"
 	"encoding/hex"
 	"fmt"
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/loader"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"io"
 	"io/fs"
 	"io/ioutil"
@@ -106,7 +109,7 @@ type Env struct {
 	scriptSums      []string
 
 	// Lazily initialized fields
-	lazyResolver  *manifest.Resolver
+	lazyResolver  *resolver.Resolver
 	lazySources   *sources.Sources
 	packageSource cache.PackageSourceSelector
 }
@@ -349,7 +352,7 @@ next:
 }
 
 // Trigger an event for all installed packages.
-func (e *Env) Trigger(l *ui.UI, event manifest.Event) (messages []string, err error) {
+func (e *Env) Trigger(l *ui.UI, event actions.Event) (messages []string, err error) {
 	pkgs, err := e.ListInstalled(l)
 	if err != nil {
 		return nil, err
@@ -365,7 +368,7 @@ func (e *Env) Trigger(l *ui.UI, event manifest.Event) (messages []string, err er
 }
 
 // TriggerForPackage triggers an event for a single package.
-func (e *Env) TriggerForPackage(l *ui.UI, event manifest.Event, pkg *manifest.Package) (messages []string, err error) {
+func (e *Env) TriggerForPackage(l *ui.UI, event actions.Event, pkg *resolver.Package) (messages []string, err error) {
 	messages, err = pkg.Trigger(l, event)
 	if err != nil {
 		return nil, errors.Wrapf(err, "%s: on %s", pkg, event)
@@ -374,7 +377,7 @@ func (e *Env) TriggerForPackage(l *ui.UI, event manifest.Event, pkg *manifest.Pa
 }
 
 // ValidateManifests from all sources.
-func (e *Env) ValidateManifests(l *ui.UI) (manifest.ManifestErrors, error) {
+func (e *Env) ValidateManifests(l *ui.UI) (loader.ManifestErrors, error) {
 	resolver, err := e.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -386,7 +389,7 @@ func (e *Env) ValidateManifests(l *ui.UI) (manifest.ManifestErrors, error) {
 }
 
 // LinkedBinaries lists just the binaries installed in the environment.
-func (e *Env) LinkedBinaries(pkg *manifest.Package) (binaries []string, err error) {
+func (e *Env) LinkedBinaries(pkg *resolver.Package) (binaries []string, err error) {
 	files, err := ioutil.ReadDir(e.binDir)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -406,11 +409,11 @@ func (e *Env) LinkedBinaries(pkg *manifest.Package) (binaries []string, err erro
 }
 
 // Uninstall uninstalls a single package.
-func (e *Env) Uninstall(l *ui.UI, pkg *manifest.Package) (*shell.Changes, error) {
+func (e *Env) Uninstall(l *ui.UI, pkg *resolver.Package) (*shell.Changes, error) {
 	return e.uninstall(l.Task(pkg.Reference.String()), pkg)
 }
 
-func (e *Env) uninstall(l *ui.Task, pkg *manifest.Package) (*shell.Changes, error) {
+func (e *Env) uninstall(l *ui.Task, pkg *resolver.Package) (*shell.Changes, error) {
 	log := l.SubTask("uninstall")
 	log.Infof("Uninstalling %s", pkg)
 	// Is it installed?
@@ -433,7 +436,7 @@ func (e *Env) uninstall(l *ui.Task, pkg *manifest.Package) (*shell.Changes, erro
 	return changes, nil
 }
 
-func (e *Env) unlinkPackage(l *ui.Task, pkg *manifest.Package) error {
+func (e *Env) unlinkPackage(l *ui.Task, pkg *resolver.Package) error {
 
 	link := e.pkgLink(pkg)
 
@@ -475,7 +478,7 @@ func (e *Env) unlink(l *ui.Task, path string) error {
 }
 
 // Test the sanity of a package using the configured test shell fragment.
-func (e *Env) Test(l *ui.UI, pkg *manifest.Package) error {
+func (e *Env) Test(l *ui.UI, pkg *resolver.Package) error {
 	task := l.Task(pkg.Reference.String())
 	if pkg.Test == "" {
 		return nil
@@ -516,13 +519,13 @@ func (e *Env) Test(l *ui.UI, pkg *manifest.Package) error {
 }
 
 // Unpack but do not install package.
-func (e *Env) Unpack(l *ui.Task, p *manifest.Package) error {
+func (e *Env) Unpack(l *ui.Task, p *resolver.Package) error {
 	task := l.SubTask(p.Reference.String())
 	return e.state.CacheAndUnpack(task, p)
 }
 
 // Install package. If a package with same name exists, uninstall it first.
-func (e *Env) Install(l *ui.UI, pkg *manifest.Package) (*shell.Changes, error) {
+func (e *Env) Install(l *ui.UI, pkg *resolver.Package) (*shell.Changes, error) {
 	task := l.Task(pkg.Reference.String())
 
 	installed, err := e.ListInstalled(l)
@@ -569,8 +572,8 @@ func (e *Env) Install(l *ui.UI, pkg *manifest.Package) (*shell.Changes, error) {
 // resolveRuntimeDependencies checks all runtime dependencies for a package are available.
 //
 // Aggregate and collect the package names and binaries of all runtime dependencies to avoid collisions.
-func (e *Env) resolveRuntimeDependencies(l *ui.UI, p *manifest.Package, aggregate map[string]*manifest.Package, bins map[string]*manifest.Package) error {
-	var depPkgs []*manifest.Package
+func (e *Env) resolveRuntimeDependencies(l *ui.UI, p *resolver.Package, aggregate map[string]*resolver.Package, bins map[string]*resolver.Package) error {
+	var depPkgs []*resolver.Package
 	// Explicitly specified runtime-dependencies in the package.
 	for _, ref := range p.RuntimeDeps {
 		previous := aggregate[ref.Name]
@@ -604,13 +607,13 @@ func (e *Env) resolveRuntimeDependencies(l *ui.UI, p *manifest.Package, aggregat
 	return nil
 }
 
-func (e *Env) ensureRuntimeDepsPresent(l *ui.UI, p *manifest.Package) ([]*manifest.Package, error) {
-	deps := map[string]*manifest.Package{}
-	err := e.resolveRuntimeDependencies(l, p, deps, map[string]*manifest.Package{})
+func (e *Env) ensureRuntimeDepsPresent(l *ui.UI, p *resolver.Package) ([]*resolver.Package, error) {
+	deps := map[string]*resolver.Package{}
+	err := e.resolveRuntimeDependencies(l, p, deps, map[string]*resolver.Package{})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	result := make([]*manifest.Package, 0, len(deps))
+	result := make([]*resolver.Package, 0, len(deps))
 	for _, pkg := range deps {
 		if err := e.state.CacheAndUnpack(l.Task(p.Reference.String()), pkg); err != nil {
 			return nil, errors.WithStack(err)
@@ -621,7 +624,7 @@ func (e *Env) ensureRuntimeDepsPresent(l *ui.UI, p *manifest.Package) ([]*manife
 }
 
 // Update timestamps for runtime dependencies.
-func (e *Env) writePackageState(pkgs ...*manifest.Package) error {
+func (e *Env) writePackageState(pkgs ...*resolver.Package) error {
 	for _, pkg := range pkgs {
 		if err := e.state.WritePackageState(pkg); err != nil {
 			return errors.WithStack(err)
@@ -631,7 +634,7 @@ func (e *Env) writePackageState(pkgs ...*manifest.Package) error {
 }
 
 // install a package
-func (e *Env) install(l *ui.UI, p *manifest.Package) (*shell.Changes, error) {
+func (e *Env) install(l *ui.UI, p *resolver.Package) (*shell.Changes, error) {
 	task := l.Task(p.Reference.String())
 
 	pkgs, err := e.ensureRuntimeDepsPresent(l, p)
@@ -661,7 +664,7 @@ func (e *Env) install(l *ui.UI, p *manifest.Package) (*shell.Changes, error) {
 }
 
 // Upgrade package.
-func (e *Env) Upgrade(l *ui.UI, pkg *manifest.Package) (*shell.Changes, error) {
+func (e *Env) Upgrade(l *ui.UI, pkg *resolver.Package) (*shell.Changes, error) {
 	task := l.Task(pkg.Reference.String())
 
 	if pkg.Reference.IsChannel() {
@@ -676,7 +679,7 @@ func (e *Env) Upgrade(l *ui.UI, pkg *manifest.Package) (*shell.Changes, error) {
 // Link chains are in the form
 //
 //     <binary> -> <pkg>-<version>.pkg -> hermit
-func (e *Env) ResolveLink(l *ui.UI, executable string) (pkg *manifest.Package, binary string, err error) {
+func (e *Env) ResolveLink(l *ui.UI, executable string) (pkg *resolver.Package, binary string, err error) {
 	links, err := util.ResolveSymlinks(executable)
 	if err != nil {
 		return nil, "", errors.WithStack(err)
@@ -709,7 +712,7 @@ func (e *Env) ResolveLink(l *ui.UI, executable string) (pkg *manifest.Package, b
 // "deps" contains all packages that need to be in the system for the execution.
 //
 // The missing dependencies are downloaded and unpacked.
-func (e *Env) Exec(l *ui.UI, pkg *manifest.Package, binary string, args []string, deps map[string]*manifest.Package) error {
+func (e *Env) Exec(l *ui.UI, pkg *resolver.Package, binary string, args []string, deps map[string]*resolver.Package) error {
 	b := l.Task(pkg.Reference.String())
 	timer := ui.LogElapsed(l, "exec")
 	err := e.state.CacheAndUnpack(l.Task(pkg.Reference.String()), pkg)
@@ -775,7 +778,7 @@ func (e *Env) Exec(l *ui.UI, pkg *manifest.Package, binary string, args []string
 	return errors.Errorf("%s: could not find binary %q", pkg, binary)
 }
 
-func (e *Env) getPackageRuntimeEnvops(pkg *manifest.Package) (envars.Op, error) {
+func (e *Env) getPackageRuntimeEnvops(pkg *resolver.Package) (envars.Op, error) {
 	// If the package contains a Hermit env, add that to the PATH for runtime dependencies
 	pkgEnv, err := OpenEnv(pkg.Root, e.state, e.packageSource, nil, e.httpClient, e.scriptSums)
 	if err != nil {
@@ -794,18 +797,18 @@ func (e *Env) getPackageRuntimeEnvops(pkg *manifest.Package) (envars.Op, error) 
 //
 // If "syncOnMissing" is true, sources will be synced if the selector cannot
 // be initially resolved, then resolve attempted again.
-func (e *Env) Resolve(l *ui.UI, selector manifest.Selector, syncOnMissing bool) (*manifest.Package, error) {
-	resolver, err := e.resolver(l)
+func (e *Env) Resolve(l *ui.UI, selector manifest.Selector, syncOnMissing bool) (*resolver.Package, error) {
+	res, err := e.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	resolved, err := resolver.Resolve(l, selector)
+	resolved, err := res.Resolve(l, selector)
 	// If the package is missing sync sources and try again, once.
-	if syncOnMissing && errors.Is(err, manifest.ErrUnknownPackage) {
-		if err = resolver.Sync(l, true); err != nil {
+	if syncOnMissing && (errors.Is(err, resolver.ErrUnknownPackage) || errors.Is(err, loader.ErrUnknownPackage)) {
+		if err = res.Sync(l, true); err != nil {
 			return nil, errors.WithStack(err)
 		}
-		resolved, err = resolver.Resolve(l, selector)
+		resolved, err = res.Resolve(l, selector)
 	}
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -831,7 +834,7 @@ func (e *Env) ValidateManifest(l *ui.UI, name string, options *ValidationOptions
 		return nil, errors.WithStack(err)
 	}
 
-	mnf, err := manifest.NewLoader(sources).Load(l, name)
+	mnf, err := loader.NewLoader(sources).Load(l, name)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -855,7 +858,7 @@ func (e *Env) validateReference(l *ui.UI, srcs *sources.Sources, ref manifest.Re
 	var fails []string
 	var warnings []string
 	for _, p := range platform.Core {
-		resolver, err := manifest.New(srcs, manifest.Config{
+		resolver, err := resolver.New(srcs, resolver.Config{
 			Env:   e.envDir,
 			State: e.state.Root(),
 			OS:    p.OS,
@@ -888,7 +891,7 @@ func (e *Env) validateReference(l *ui.UI, srcs *sources.Sources, ref manifest.Re
 }
 
 // ResolveVirtual references to concrete packages.
-func (e *Env) ResolveVirtual(l *ui.UI, name string) ([]*manifest.Package, error) {
+func (e *Env) ResolveVirtual(l *ui.UI, name string) ([]*resolver.Package, error) {
 	resolver, err := e.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -905,7 +908,7 @@ func (e *Env) ResolveVirtual(l *ui.UI, name string) ([]*manifest.Package, error)
 
 // UpdateUsage updates the package usage time stamps in the underlying database.
 // if the package was not previously present, it is inserted to the DB.
-func (e *Env) UpdateUsage(pkg *manifest.Package) error {
+func (e *Env) UpdateUsage(pkg *resolver.Package) error {
 	err := e.state.WritePackageState(pkg)
 	if err != nil {
 		return errors.WithStack(err)
@@ -931,12 +934,12 @@ func (e *Env) ListInstalledReferences() ([]manifest.Reference, error) {
 }
 
 // ListInstalled packages from this environment.
-func (e *Env) ListInstalled(l *ui.UI) ([]*manifest.Package, error) {
+func (e *Env) ListInstalled(l *ui.UI) ([]*resolver.Package, error) {
 	refs, err := e.ListInstalledReferences()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	out := []*manifest.Package{}
+	out := []*resolver.Package{}
 	for _, ref := range refs {
 		pkg, err := e.Resolve(l, manifest.ExactSelector(ref), false)
 		if err != nil { // We don't want to error if there are corrupt packages.
@@ -1035,7 +1038,7 @@ func (e *Env) Clean(l *ui.UI, level CleanMask) error {
 }
 
 // Search for packages using the given regular expression.
-func (e *Env) Search(l *ui.UI, pattern string) (manifest.Packages, error) {
+func (e *Env) Search(l *ui.UI, pattern string) (resolver.Packages, error) {
 	resolver, err := e.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -1055,7 +1058,7 @@ func (e *Env) Search(l *ui.UI, pattern string) (manifest.Packages, error) {
 // and the etag in the source has changed from the last check.
 //
 // This should only be called for packages that have already been installed
-func (e *Env) EnsureChannelIsUpToDate(l *ui.UI, pkg *manifest.Package) error {
+func (e *Env) EnsureChannelIsUpToDate(l *ui.UI, pkg *resolver.Package) error {
 	task := l.Task(pkg.Reference.String())
 	if pkg.UpdateInterval == 0 || pkg.UpdatedAt.After(time.Now().Add(-1*pkg.UpdateInterval)) {
 		task.Tracef("No updated required")
@@ -1088,7 +1091,7 @@ func (e *Env) BinDir() string {
 // upgradeVersion upgrades the package to its latest version.
 //
 // If the package is already at its latest version, this is a no-op.
-func (e *Env) upgradeVersion(l *ui.UI, pkg *manifest.Package) (*shell.Changes, error) {
+func (e *Env) upgradeVersion(l *ui.UI, pkg *resolver.Package) (*shell.Changes, error) {
 	resolver, err := e.resolver(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -1118,7 +1121,7 @@ func (e *Env) upgradeVersion(l *ui.UI, pkg *manifest.Package) (*shell.Changes, e
 	return shell.NewChanges(envars.Parse(os.Environ())), nil
 }
 
-func (e *Env) readPackageState(pkg *manifest.Package) {
+func (e *Env) readPackageState(pkg *resolver.Package) {
 	_, err := os.Stat(e.pkgLink(pkg))
 	pkg.Linked = err == nil
 	e.state.ReadPackageState(pkg)
@@ -1129,7 +1132,7 @@ func (e *Env) referenceFromBinLink(pkgLink string) manifest.Reference {
 	return manifest.ParseReference(name)
 }
 
-func (e *Env) checkForConflicts(files []string, pkg *manifest.Package) error {
+func (e *Env) checkForConflicts(files []string, pkg *resolver.Package) error {
 	conflicts := []string{}
 	for _, file := range files {
 		link := filepath.Join(e.binDir, filepath.Base(file))
@@ -1147,7 +1150,7 @@ func (e *Env) checkForConflicts(files []string, pkg *manifest.Package) error {
 	return nil
 }
 
-func (e *Env) linkPackage(l *ui.Task, pkg *manifest.Package) error {
+func (e *Env) linkPackage(l *ui.Task, pkg *resolver.Package) error {
 	task := l.SubTask("link")
 	files, err := pkg.ResolveBinaries()
 	if err != nil {
@@ -1195,12 +1198,12 @@ func (e *Env) linkIntoEnv(l *ui.Task, oldname, newname string) error {
 	return nil
 }
 
-func (e *Env) pkgLink(pkg *manifest.Package) string {
+func (e *Env) pkgLink(pkg *resolver.Package) string {
 	return filepath.Join(e.binDir, fmt.Sprintf(".%s.pkg", pkg))
 }
 
 // Returns combined system + Hermit + package environment variables, fully expanded.
-func (e *Env) allEnvarOpsForPackages(runtimeDeps []*manifest.Package, pkgs ...*manifest.Package) envars.Ops {
+func (e *Env) allEnvarOpsForPackages(runtimeDeps []*resolver.Package, pkgs ...*resolver.Package) envars.Ops {
 	var ops envars.Ops
 	ops = append(ops, e.hermitEnvarOps()...)
 	ops = append(ops, e.hermitRuntimeDepOps(runtimeDeps)...)
@@ -1222,7 +1225,7 @@ func (e *Env) envarsFromOps(inherit bool, ops envars.Ops) []string {
 }
 
 // envarsForPackages returns the environment variable operations by the given packages.
-func (e *Env) envarsForPackages(pkgs ...*manifest.Package) envars.Ops {
+func (e *Env) envarsForPackages(pkgs ...*resolver.Package) envars.Ops {
 	out := envars.Ops{}
 	for _, pkg := range pkgs {
 		out = append(out, pkg.Env...)
@@ -1245,7 +1248,7 @@ func (e *Env) hermitEnvarOps() envars.Ops {
 }
 
 // hermitRuntimeDepOps returns the environment variables for runtime dependencies
-func (e *Env) hermitRuntimeDepOps(pkgs []*manifest.Package) envars.Ops {
+func (e *Env) hermitRuntimeDepOps(pkgs []*resolver.Package) envars.Ops {
 	ops := e.envarsForPackages(pkgs...)
 	for _, pkg := range pkgs {
 		ops = append(ops, &envars.Prepend{Name: "PATH", Value: filepath.Join(e.state.BinaryDir(), pkg.Reference.String())})
@@ -1306,7 +1309,7 @@ func (e *Env) Sources(l *ui.UI) ([]string, error) {
 }
 
 // ResolveWithDeps collect packages and their dependencies based on the given manifest.Selector into a map
-func (e *Env) ResolveWithDeps(l *ui.UI, installed []manifest.Reference, selector manifest.Selector, out map[string]*manifest.Package) (err error) {
+func (e *Env) ResolveWithDeps(l *ui.UI, installed []manifest.Reference, selector manifest.Selector, out map[string]*resolver.Package) (err error) {
 	for _, existing := range installed {
 		if existing.String() == selector.Name() {
 			return nil
@@ -1320,7 +1323,7 @@ func (e *Env) ResolveWithDeps(l *ui.UI, installed []manifest.Reference, selector
 	for _, req := range pkg.Requires {
 		// First search from virtual providers
 		ref, err := e.resolveVirtual(l, req)
-		if err != nil && errors.Is(err, manifest.ErrUnknownPackage) {
+		if err != nil && (errors.Is(err, resolver.ErrUnknownPackage) || errors.Is(err, loader.ErrUnknownPackage)) {
 			// Secondly search by the package name
 			sel, err := manifest.ParseGlobSelector(req)
 			if err != nil {
@@ -1400,7 +1403,7 @@ func (e *Env) sources(l *ui.UI) (*sources.Sources, error) {
 	return sources, nil
 }
 
-func (e *Env) resolver(l *ui.UI) (*manifest.Resolver, error) {
+func (e *Env) resolver(l *ui.UI) (*resolver.Resolver, error) {
 	if e.lazyResolver != nil {
 		return e.lazyResolver, nil
 	}
@@ -1408,7 +1411,7 @@ func (e *Env) resolver(l *ui.UI) (*manifest.Resolver, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	resolver, err := manifest.New(sources, manifest.Config{
+	resolver, err := resolver.New(sources, resolver.Config{
 		Env:   e.envDir,
 		State: e.state.Root(),
 		OS:    runtime.GOOS,

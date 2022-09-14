@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,11 +24,11 @@ type infoCmd struct {
 }
 
 func (i *infoCmd) Run(l *ui.UI, env *hermit.Env, sta *state.State) error {
-	var installed map[string]*manifest.Package
+	var installed map[string]*resolver.Package
 	var err error
-	packages := []*manifest.Package{}
+	packages := []*resolver.Package{}
 	for _, selector := range i.Packages {
-		var pkg *manifest.Package
+		var pkg *resolver.Package
 		if env != nil {
 			if installed == nil {
 				installed, err = getInstalledPackageMap(l, env)
@@ -105,12 +106,12 @@ func (i *infoCmd) Run(l *ui.UI, env *hermit.Env, sta *state.State) error {
 	return nil
 }
 
-func getInstalledPackageMap(l *ui.UI, env *hermit.Env) (map[string]*manifest.Package, error) {
+func getInstalledPackageMap(l *ui.UI, env *hermit.Env) (map[string]*resolver.Package, error) {
 	installedPkgs, err := env.ListInstalled(l)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	installed := make(map[string]*manifest.Package, len(installedPkgs))
+	installed := make(map[string]*resolver.Package, len(installedPkgs))
 	for _, installedPkg := range installedPkgs {
 		installed[installedPkg.Reference.Name] = installedPkg
 	}

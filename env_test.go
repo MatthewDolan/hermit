@@ -1,6 +1,9 @@
 package hermit_test
 
 import (
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/loader"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -197,7 +200,7 @@ func TestCopyFilesAction(t *testing.T) {
 		WithSource("archive/testdata/archive.tar.gz").
 		WithVersion("1").
 		WithFS(os.DirFS(dir)).
-		WithTrigger(manifest.EventUnpack, &manifest.CopyAction{
+		WithTrigger(actions.EventUnpack, &actions.CopyAction{
 			From: "from",
 			To:   filepath.Join(dir, "to"),
 			Mode: 0755,
@@ -232,8 +235,8 @@ func TestTriggers(t *testing.T) {
 	pkg := manifesttest.NewPkgBuilder(fixture.RootDir()).
 		WithSource("archive/testdata/archive.tar.gz").
 		WithVersion("1").
-		WithTrigger(manifest.EventUnpack,
-			&manifest.RunAction{
+		WithTrigger(actions.EventUnpack,
+			&actions.RunAction{
 				Command: "/bin/sh",
 				Dir:     dir,
 				Args:    []string{file},
@@ -351,19 +354,19 @@ func TestDependencyResolution(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that dependencies can be resolved based on the package name
-	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg1"), map[string]*manifest.Package{})
+	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg1"), map[string]*resolver.Package{})
 	require.NoError(t, err)
 
 	// Test that dependencies can be resolved based on the virtual package name
-	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg2"), map[string]*manifest.Package{})
+	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg2"), map[string]*resolver.Package{})
 	require.NoError(t, err)
 
 	// Test that missing dependencies fail
-	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg3"), map[string]*manifest.Package{})
-	require.ErrorIs(t, err, manifest.ErrUnknownPackage)
+	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg3"), map[string]*resolver.Package{})
+	require.ErrorIs(t, err, loader.ErrUnknownPackage)
 
 	// Test that resolving package where requirement is fulfilled by multiple uninstalled packages fails
-	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg4"), map[string]*manifest.Package{})
+	err = f.Env.ResolveWithDeps(f.P, installed, manifest.NameSelector("pkg4"), map[string]*resolver.Package{})
 	require.Errorf(t, err, "multiple packages satisfy the required dependency \"virtual2\", please install one of the following manually: pkg1, pkg2")
 }
 

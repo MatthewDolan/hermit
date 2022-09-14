@@ -1,12 +1,14 @@
 package manifest
 
 import (
+	"github.com/gobwas/glob"
 	"reflect"
 	"regexp"
 	"time"
 
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"
+	"github.com/cashapp/hermit/manifest/actions"
 	"github.com/cashapp/hermit/platform"
 )
 
@@ -24,32 +26,32 @@ const (
 
 // A Layer contributes to the final merged manifest definition.
 type Layer struct {
-	Arch        string            `hcl:"arch,optional" help:"CPU architecture to match (amd64, 386, arm, etc.)."`
-	Binaries    []string          `hcl:"binaries,optional" help:"Relative glob from $root to individual terminal binaries."`
-	Apps        []string          `hcl:"apps,optional" help:"Relative paths to Mac .app packages to install."`
-	Rename      map[string]string `hcl:"rename,optional" help:"Rename files after unpacking to ${root}."`
-	Requires    []string          `hcl:"requires,optional" help:"Packages this one requires."`
-	RuntimeDeps []string          `hcl:"runtime-dependencies,optional" help:"Packages used internally by this package, but not installed to the target environment"`
-	Provides    []string          `hcl:"provides,optional" help:"This package provides the given virtual packages."`
-	Dest        string            `hcl:"dest,optional" help:"Override archive extraction destination for package."`
-	Files       map[string]string `hcl:"files,optional" help:"Files to load strings from to be used in the manifest."`
-	Strip       int               `hcl:"strip,optional" help:"Number of path prefix elements to strip."`
-	Root        string            `hcl:"root,optional" help:"Override root for package."`
-	Test        *string           `hcl:"test,optional" help:"Command that will test the package is operational."`
-	Env         envars.Envars     `hcl:"env,optional" help:"Environment variables to export."`
-	Vars        map[string]string `hcl:"vars,optional" help:"Set local variables used during manifest evaluation."`
-	Source      string            `hcl:"source,optional" help:"URL for source package. Valid URLs are Git repositories (using .git[#<tag>] suffix), Local Files (using file:// prefix), and Remote Files (using http:// or https:// prefix)"`
-	Mirrors     []string          `hcl:"mirrors,optional" help:"Mirrors to use if the primary source is unavailable."`
-	SHA256      string            `hcl:"sha256,optional" help:"SHA256 of source package for verification. When in conflict with SHA256 in sha256sums, this value takes precedence."`
-	SHA256Sums  map[string]string `hcl:"sha256sums,optional" help:"SHA256 checksums of source packages for verification."`
-	Darwin      []*Layer          `hcl:"darwin,block" help:"Darwin-specific configuration."`
-	Linux       []*Layer          `hcl:"linux,block" help:"Linux-specific configuration."`
-	Platform    []*PlatformBlock  `hcl:"platform,block" help:"Platform-specific configuration. <attr> is a set regexes that must all match against one of CPU, OS, etc.."`
-	Triggers    []*Trigger        `hcl:"on,block" help:"Triggers to run on lifecycle events."`
-	Mutable     bool              `hcl:"mutable,optional" help:"Package will not be made read-only."`
+	Arch        string             `hcl:"arch,optional" help:"CPU architecture to match (amd64, 386, arm, etc.)."`
+	Binaries    []string           `hcl:"binaries,optional" help:"Relative glob from $root to individual terminal binaries."`
+	Apps        []string           `hcl:"apps,optional" help:"Relative paths to Mac .app packages to install."`
+	Rename      map[string]string  `hcl:"rename,optional" help:"Rename files after unpacking to ${root}."`
+	Requires    []string           `hcl:"requires,optional" help:"Packages this one requires."`
+	RuntimeDeps []string           `hcl:"runtime-dependencies,optional" help:"Packages used internally by this package, but not installed to the target environment"`
+	Provides    []string           `hcl:"provides,optional" help:"This package provides the given virtual packages."`
+	Dest        string             `hcl:"dest,optional" help:"Override archive extraction destination for package."`
+	Files       map[string]string  `hcl:"files,optional" help:"Files to load strings from to be used in the manifest."`
+	Strip       int                `hcl:"strip,optional" help:"Number of path prefix elements to strip."`
+	Root        string             `hcl:"root,optional" help:"Override root for package."`
+	Test        *string            `hcl:"test,optional" help:"Command that will test the package is operational."`
+	Env         envars.Envars      `hcl:"env,optional" help:"Environment variables to export."`
+	Vars        map[string]string  `hcl:"vars,optional" help:"Set local variables used during manifest evaluation."`
+	Source      string             `hcl:"source,optional" help:"URL for source package. Valid URLs are Git repositories (using .git[#<tag>] suffix), Local Files (using file:// prefix), and Remote Files (using http:// or https:// prefix)"`
+	Mirrors     []string           `hcl:"mirrors,optional" help:"Mirrors to use if the primary source is unavailable."`
+	SHA256      string             `hcl:"sha256,optional" help:"SHA256 of source package for verification. When in conflict with SHA256 in sha256sums, this value takes precedence."`
+	SHA256Sums  map[string]string  `hcl:"sha256sums,optional" help:"SHA256 checksums of source packages for verification."`
+	Darwin      []*Layer           `hcl:"darwin,block" help:"Darwin-specific configuration."`
+	Linux       []*Layer           `hcl:"linux,block" help:"Linux-specific configuration."`
+	Platform    []*PlatformBlock   `hcl:"platform,block" help:"Platform-specific configuration. <attr> is a set regexes that must all match against one of CPU, OS, etc.."`
+	Triggers    []*actions.Trigger `hcl:"on,block" help:"Triggers to run on lifecycle events."`
+	Mutable     bool               `hcl:"mutable,optional" help:"Package will not be made read-only."`
 }
 
-func (c Layer) layers(os string, arch string) (out layers) {
+func (c Layer) layers(os string, arch string) (out Layers) {
 	out = append(out, &c)
 	var selected []*Layer
 	switch os {
@@ -123,7 +125,7 @@ type ChannelBlock struct {
 	Layer
 }
 
-func (c *ChannelBlock) layersWithReferences(os string, arch string, m *Manifest) (layers, error) {
+func (c *ChannelBlock) layersWithReferences(os string, arch string, m *Manifest) (Layers, error) {
 	layer := c.layers(os, arch)
 	if c.Version != "" {
 		v := c.Version
@@ -153,9 +155,66 @@ type Manifest struct {
 	Channels    []ChannelBlock `hcl:"channel,block" help:"Definition of and configuration for an auto-update channel."`
 }
 
-// Merge layers for the selected package reference, either from versions or channels.
-func (m *Manifest) layers(ref Reference, os string, arch string) (layers, error) {
-	versionLayers := map[string]layers{}
+// HighestMatch returns the VersionBlock with highest version number matching the given Glob
+func (m *Manifest) HighestMatch(to glob.Glob) (result *VersionBlock, highest *Version) {
+	versions := m.Versions
+	for _, v := range versions {
+		block := v
+		for _, vstr := range v.Version {
+			parsed := ParseVersion(vstr)
+			if to.Match(vstr) && (highest == nil || highest.Less(parsed)) {
+				highest = &parsed
+				result = &block
+			}
+		}
+	}
+	return
+}
+
+// ChannelByName returns the channel with the given name, or nil if not found
+func (m *Manifest) ChannelByName(name string) *ChannelBlock {
+	for _, c := range m.Channels {
+		if c.Name == name {
+			return &c
+		}
+	}
+	return nil
+}
+
+// Validate Verify that there are no semantic errors in the manifest
+func (m *Manifest) Validate() []error {
+	var (
+		result   []error
+		versions = m.Versions
+	)
+
+	for _, channel := range m.Channels {
+		if channel.Version != "" {
+			g, err := ParseGlob(channel.Version)
+			if err != nil {
+				result = append(result, errors.Errorf("@%s: invalid glob: %s", channel.Name, err))
+			}
+			found := false
+			for _, v := range versions {
+				for _, version := range v.Version {
+					if g.Match(ParseVersion(version).String()) {
+						found = true
+						break
+					}
+				}
+			}
+			if !found {
+				result = append(result, errors.Errorf("@%s: no version found matching %s", channel.Name, channel.Version))
+			}
+		}
+	}
+
+	return result
+}
+
+// Layers merges layers for the selected package reference, either from versions or channels.
+func (m *Manifest) Layers(ref Reference, os string, arch string) (Layers, error) {
+	versionLayers := map[string]Layers{}
 
 	for _, v := range m.Versions {
 		l := v.layers(os, arch)
@@ -178,12 +237,12 @@ func (m *Manifest) layers(ref Reference, os string, arch string) (layers, error)
 	return nil, nil
 }
 
-// unsupported returns the platforms not supported in the given Reference
-func (m *Manifest) unsupported(ref Reference, platforms []platform.Platform) []platform.Platform {
+// Unsupported returns the platforms not supported in the given Reference
+func (m *Manifest) Unsupported(ref Reference, platforms []platform.Platform) []platform.Platform {
 	var result []platform.Platform
 platformsNext:
 	for _, p := range platforms {
-		lrs, _ := m.layers(ref, p.OS, p.Arch)
+		lrs, _ := m.Layers(ref, p.OS, p.Arch)
 		for _, l := range lrs {
 			if l.Source != "" {
 				continue platformsNext
@@ -229,10 +288,11 @@ func (m *Manifest) References(name string) References {
 	return refs
 }
 
-type layers []*Layer
+// Layers is a list of individual `Layer`s.
+type Layers []*Layer
 
-// Return the last non-zero value for a field in the stack of layers.
-func (ls layers) field(key string, seed interface{}) interface{} {
+// Field return the last non-zero value for a Field in the stack of layers.
+func (ls Layers) Field(key string, seed interface{}) interface{} {
 	out := seed
 	for _, l := range ls {
 		f := reflect.ValueOf(l).Elem().FieldByName(key)

@@ -1,6 +1,7 @@
-package manifest
+package resolver
 
 import (
+	"github.com/cashapp/hermit/manifest"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -10,7 +11,7 @@ func TestInferRepository(t *testing.T) {
 		name               string
 		Package            *Package
 		expectedRepository string
-		Manifest           *Manifest
+		Manifest           *manifest.Manifest
 	}{
 		{
 			name:               "empty repository on no source",
@@ -40,11 +41,11 @@ func TestInferRepository(t *testing.T) {
 		{
 			name:    "able to figure out from manifest from github auto version",
 			Package: &Package{Source: "git@github.com:cashapp/test-project.git#v${version"},
-			Manifest: &Manifest{
-				Versions: []VersionBlock{
+			Manifest: &manifest.Manifest{
+				Versions: []manifest.VersionBlock{
 					{
 						Version: nil,
-						AutoVersion: &AutoVersionBlock{
+						AutoVersion: &manifest.AutoVersionBlock{
 							GitHubRelease: "cashapp/test-project",
 						},
 					},

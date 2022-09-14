@@ -1,6 +1,8 @@
 package manifesttest
 
 import (
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"io/fs"
 	"time"
 
@@ -11,7 +13,7 @@ import (
 
 // PkgBuilder is a builder pattern implementation for manifest.Package objects
 type PkgBuilder struct {
-	result *manifest.Package
+	result *resolver.Package
 }
 
 // NewPkgBuilder returns a new builder with sensible default values
@@ -21,20 +23,20 @@ func NewPkgBuilder(root string) PkgBuilder {
 		Version: manifest.Version{},
 	}
 	return PkgBuilder{
-		&manifest.Package{
+		&resolver.Package{
 			Reference: ref,
 			Binaries:  []string{"darwin_exe", "linux_exe"},
 			Root:      root,
 			Dest:      root,
-			Triggers:  map[manifest.Event][]manifest.Action{},
+			Triggers:  map[actions.Event][]actions.Action{},
 			State:     manifest.PackageStateRemote,
-			Files:     []*manifest.ResolvedFileRef{},
+			Files:     []*resolver.ResolvedFileRef{},
 		},
 	}
 }
 
 // Result returns the manifest.Package object
-func (b PkgBuilder) Result() *manifest.Package {
+func (b PkgBuilder) Result() *resolver.Package {
 	return b.result
 }
 
@@ -94,7 +96,7 @@ func (b PkgBuilder) WithUpdateInterval(dur time.Duration) PkgBuilder {
 
 // WithFile adds an external file to the package
 func (b PkgBuilder) WithFile(src, dst string, fs fs.FS) PkgBuilder {
-	b.result.Files = append(b.result.Files, &manifest.ResolvedFileRef{
+	b.result.Files = append(b.result.Files, &resolver.ResolvedFileRef{
 		FS:       fs,
 		FromPath: src,
 		ToPAth:   dst,
@@ -103,7 +105,7 @@ func (b PkgBuilder) WithFile(src, dst string, fs fs.FS) PkgBuilder {
 }
 
 // WithTrigger adds a lifecycle trigger to the package
-func (b PkgBuilder) WithTrigger(event manifest.Event, actions ...manifest.Action) PkgBuilder {
+func (b PkgBuilder) WithTrigger(event actions.Event, actions ...actions.Action) PkgBuilder {
 	b.result.Triggers[event] = append(b.result.Triggers[event], actions...)
 	return b
 }

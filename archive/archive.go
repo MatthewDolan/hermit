@@ -8,6 +8,7 @@ import (
 	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"io"
 	"io/ioutil"
 	"os"
@@ -29,7 +30,6 @@ import (
 
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/internal/system"
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/ui"
 	"github.com/cashapp/hermit/util"
 )
@@ -37,7 +37,7 @@ import (
 // Extract from "source" to package destination.
 //
 // "finalise" must be called to complete extraction of the package.
-func Extract(b *ui.Task, source string, pkg *manifest.Package) (finalise func() error, err error) {
+func Extract(b *ui.Task, source string, pkg *resolver.Package) (finalise func() error, err error) {
 	task := b.SubTask("unpack")
 	finalise = func() error {
 		return nil
@@ -168,7 +168,7 @@ func isDirectory(path string) (bool, error) {
 	return fileInfo.IsDir(), nil
 }
 
-func installFromDirectory(source string, pkg *manifest.Package) error {
+func installFromDirectory(source string, pkg *resolver.Package) error {
 	err := copy.Copy(source, pkg.Dest)
 	if err != nil {
 		return errors.WithStack(err)
@@ -176,7 +176,7 @@ func installFromDirectory(source string, pkg *manifest.Package) error {
 	return nil
 }
 
-func installMacDMG(b *ui.Task, source string, pkg *manifest.Package) error {
+func installMacDMG(b *ui.Task, source string, pkg *resolver.Package) error {
 	dest := pkg.Dest + "~"
 	err := os.MkdirAll(dest, 0700)
 	if err != nil {
@@ -481,7 +481,7 @@ func extractPackageTarball(b *ui.Task, r io.Reader, dest string, strip int) erro
 	return nil
 }
 
-func extractDebianPackage(b *ui.Task, r io.Reader, dest string, pkg *manifest.Package) error {
+func extractDebianPackage(b *ui.Task, r io.Reader, dest string, pkg *resolver.Package) error {
 	reader := ar.NewReader(r)
 	for {
 		header, err := reader.Next()
@@ -555,7 +555,7 @@ func extract7Zip(r io.ReaderAt, size int64, dest string, strip int) error {
 	return nil
 }
 
-func extractRpmPackage(r io.Reader, dest string, pkg *manifest.Package) error {
+func extractRpmPackage(r io.Reader, dest string, pkg *resolver.Package) error {
 	rpm, err := rpmutils.ReadRpm(r)
 	if err != nil {
 		return errors.WithStack(err)

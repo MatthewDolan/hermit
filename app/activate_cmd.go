@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/cashapp/hermit/manifest/actions"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"github.com/cashapp/hermit/cache"
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/shell"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
@@ -31,7 +31,7 @@ func (a *activateCmd) Run(l *ui.UI, cache *cache.Cache, sta *state.State, global
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	messages, err := env.Trigger(l, manifest.EventEnvActivate)
+	messages, err := env.Trigger(l, actions.EventEnvActivate)
 	if err != nil {
 		return errors.WithStack(err)
 	}

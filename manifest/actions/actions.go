@@ -1,7 +1,8 @@
-package manifest
+package actions
 
 import (
 	"fmt"
+
 	"io/fs"
 	"os"
 	"os/exec"
@@ -18,10 +19,17 @@ import (
 
 // go-sumtype:decl Action EnvOp
 
+// Package interface type that represents a *resolver.Package.
+type Package interface {
+	GetFS() fs.FS
+
+	RootDir() string
+}
+
 // Action interface implemented by all lifecycle trigger actions.
 type Action interface {
-	position() hcl.Position
-	Apply(p *Package) error
+	Position() hcl.Position
+	Apply(p Package) error
 	String() string
 }
 
@@ -32,9 +40,10 @@ type MessageAction struct {
 	Text string `hcl:"text" help:"Message text to display to user."`
 }
 
-func (m *MessageAction) position() hcl.Position { return m.Pos }
+// Position returns the hcl position of the action.
+func (m *MessageAction) Position() hcl.Position { return m.Pos }
 func (m *MessageAction) String() string         { return fmt.Sprintf("echo %s", shell.Quote(m.Text)) }
-func (m *MessageAction) Apply(p *Package) error { return nil } // nolint
+func (m *MessageAction) Apply(p Package) error  { return nil } // nolint
 
 // RenameAction renames a file.
 type RenameAction struct {
@@ -44,11 +53,12 @@ type RenameAction struct {
 	To   string `hcl:"to" help:"Destination path to rename to."`
 }
 
-func (r *RenameAction) position() hcl.Position { return r.Pos }
+// Position returns the hcl position of the action.
+func (r *RenameAction) Position() hcl.Position { return r.Pos }
 func (r *RenameAction) String() string {
 	return fmt.Sprintf("mv %s %s", shell.Quote(r.From), shell.Quote(r.To))
 }
-func (r *RenameAction) Apply(*Package) error { // nolint
+func (r *RenameAction) Apply(Package) error { // nolint
 	return os.Rename(r.From, r.To)
 }
 
@@ -59,9 +69,10 @@ type DeleteAction struct {
 	Files     []string     `hcl:"files" help:"Files to delete."`
 }
 
-func (d *DeleteAction) position() hcl.Position { return d.Pos }
+// Position returns the hcl position of the action.
+func (d *DeleteAction) Position() hcl.Position { return d.Pos }
 func (d *DeleteAction) String() string         { return fmt.Sprintf("rm %s", strings.Join(d.Files, " ")) }
-func (d *DeleteAction) Apply(*Package) error { // nolint
+func (d *DeleteAction) Apply(Package) error { // nolint
 	for _, file := range d.Files {
 		if d.Recursive {
 			if err := os.RemoveAll(file); err != nil {
@@ -82,9 +93,10 @@ type ChmodAction struct {
 	File string `hcl:"file" help:"File to set mode on."`
 }
 
-func (c *ChmodAction) position() hcl.Position { return c.Pos }
+// Position returns the hcl position of the action.
+func (c *ChmodAction) Position() hcl.Position { return c.Pos }
 func (c *ChmodAction) String() string         { return fmt.Sprintf("chmod %o %s", c.Mode, shell.Quote(c.File)) }
-func (c *ChmodAction) Apply(*Package) error { // nolint
+func (c *ChmodAction) Apply(Package) error { // nolint
 	return os.Chmod(c.File, os.FileMode(c.Mode))
 }
 
@@ -99,11 +111,12 @@ type RunAction struct {
 	Stdin   string   `hcl:"stdin,optional" help:"Optional string to be used as the stdin for the command."`
 }
 
-func (r *RunAction) position() hcl.Position { return r.Pos }
+// Position returns the hcl position of the action.
+func (r *RunAction) Position() hcl.Position { return r.Pos }
 func (r *RunAction) String() string {
 	return fmt.Sprintf("%s %s", r.Command, shellquote.Join(r.Args...))
 }
-func (r *RunAction) Apply(p *Package) error { // nolint
+func (r *RunAction) Apply(p Package) error { // nolint
 	args, err := shellquote.Split(r.Command)
 	if err != nil {
 		return errors.Wrapf(err, "%s: invalid shell command %q", p, r.Command)
@@ -112,7 +125,7 @@ func (r *RunAction) Apply(p *Package) error { // nolint
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = r.Env
 	if r.Dir == "" {
-		cmd.Dir = p.Root
+		cmd.Dir = p.RootDir()
 	} else {
 		cmd.Dir = r.Dir
 	}
@@ -136,7 +149,8 @@ type CopyAction struct {
 	Mode os.FileMode `hcl:"mode,optional" help:"File mode of file."`
 }
 
-func (c *CopyAction) position() hcl.Position { return c.Pos }
+// Position returns the hcl position of the action.
+func (c *CopyAction) Position() hcl.Position { return c.Pos }
 func (c *CopyAction) String() string {
 	mode := c.Mode
 	if mode == 0 {
@@ -144,8 +158,8 @@ func (c *CopyAction) String() string {
 	}
 	return fmt.Sprintf("install -m %04o %s %s", mode, shell.Quote(c.From), shell.Quote(c.To))
 }
-func (c *CopyAction) Apply(p *Package) error { // nolint
-	fromFS := p.FS
+func (c *CopyAction) Apply(p Package) error { // nolint
+	fromFS := p.GetFS()
 	if filepath.IsAbs(c.From) {
 		fromFS = os.DirFS("/")
 	}

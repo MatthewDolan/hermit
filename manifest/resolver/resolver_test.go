@@ -1,6 +1,8 @@
-package manifest_test
+package resolver_test
 
 import (
+	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
 	"os"
 	"testing"
 	"time"
@@ -10,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cashapp/hermit/envars"
-	. "github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/manifest/manifesttest"
+	. "github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/platform"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/ui"
@@ -102,14 +104,14 @@ func TestResolver_Resolve(t *testing.T) {
 			WithBinaries("bin").
 			WithVersion("1.0.0").
 			WithSource("www.example-2.com").
-			WithTrigger(EventUnpack,
-				&CopyAction{From: "foo/bar", To: config.State + "/pkg/test-1.0.0/fizz"},
-				&RunAction{
+			WithTrigger(actions.EventUnpack,
+				&actions.CopyAction{From: "foo/bar", To: config.State + "/pkg/test-1.0.0/fizz"},
+				&actions.RunAction{
 					Command: "/test",
 					Dir:     config.State + "/pkg/test-1.0.0",
 				},
-				&CopyAction{From: "foo/baz", To: config.State + "/pkg/test-1.0.0/biz"},
-				&MessageAction{Text: "hello"},
+				&actions.CopyAction{From: "foo/baz", To: config.State + "/pkg/test-1.0.0/biz"},
+				&actions.MessageAction{Text: "hello"},
 			).
 			Result(),
 	}, {
@@ -327,7 +329,7 @@ func TestResolver_Resolve(t *testing.T) {
 			l, err := New(sources.New("", ss), config)
 			require.NoError(t, err)
 			if tt.reference != "" {
-				gotPkg, err := l.Resolve(logger, PrefixSelector(ParseReference(tt.reference)))
+				gotPkg, err := l.Resolve(logger, manifest.PrefixSelector(manifest.ParseReference(tt.reference)))
 				if err != nil || tt.wantErr != "" {
 					require.Equal(t, tt.wantErr, err.Error())
 				}

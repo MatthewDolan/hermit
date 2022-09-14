@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"github.com/cashapp/hermit/manifest/actions"
 	"os"
 
 	"github.com/cashapp/hermit"
@@ -33,7 +34,7 @@ next:
 					return errors.WithStack(err)
 				}
 				changes = changes.Merge(c)
-				messages, err := env.TriggerForPackage(l, manifest.EventUninstall, pkg)
+				messages, err := env.TriggerForPackage(l, actions.EventUninstall, pkg)
 				if err != nil {
 					return errors.WithStack(err)
 				}

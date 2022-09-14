@@ -1,4 +1,4 @@
-package manifest
+package loader
 
 import (
 	"fmt"
@@ -13,17 +13,21 @@ import (
 	"github.com/gobwas/glob"
 
 	"github.com/cashapp/hermit/errors"
+	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/ui"
 )
 
+// ErrUnknownPackage is returned when a package cannot be loaded.
+var ErrUnknownPackage = errors.New("unknown package")
+
 // AnnotatedManifest includes extra metadata not included in the manifest itself.
 type AnnotatedManifest struct {
-	FS        fs.FS
-	Path      string // Fully qualified path to manifest, including the FS.
-	Name      string
-	Errors    []error
-	*Manifest // May be nil if errors were encountered.
+	FS                 fs.FS
+	Path               string // Fully qualified path to manifest, including the FS.
+	Name               string
+	Errors             []error
+	*manifest.Manifest // May be nil if errors were encountered.
 }
 
 func (f *AnnotatedManifest) String() string { return f.Path }
@@ -123,17 +127,17 @@ func (l *Loader) All() ([]*AnnotatedManifest, error) {
 				continue
 			}
 			seen[name] = true
-			if manifest, ok := l.files[name]; ok {
-				manifests = append(manifests, manifest)
+			if m, ok := l.files[name]; ok {
+				manifests = append(manifests, m)
 				continue
 			}
-			manifest := load(bundle, name, file)
-			if manifest == nil {
+			m := load(bundle, name, file)
+			if m == nil {
 				continue
 			}
-			l.files[name] = manifest
-			if manifest.Manifest != nil {
-				manifests = append(manifests, manifest)
+			l.files[name] = m
+			if m.Manifest != nil {
+				manifests = append(manifests, m)
 			}
 		}
 	}
@@ -169,24 +173,24 @@ func load(bundle fs.FS, name, filename string) *AnnotatedManifest {
 		annotated.Errors = append(annotated.Errors, errors.WithStack(err))
 		return annotated
 	}
-	manifest := &Manifest{}
-	err = hcl.Unmarshal(data, manifest)
+	m := &manifest.Manifest{}
+	err = hcl.Unmarshal(data, m)
 	if err != nil {
 		annotated.Errors = append(annotated.Errors, errors.WithStack(err))
 		return annotated
 	}
-	annotated.Manifest = manifest
-	annotated.Errors = append(annotated.Errors, annotated.validate()...)
+	annotated.Manifest = m
+	annotated.Errors = append(annotated.Errors, annotated.Validate()...)
 	synthesise(annotated)
 	return annotated
 }
 
 // Synthesise a "stable" channel and a channel for each major version.
-func synthesise(manifest *AnnotatedManifest) {
-	highest, version := manifest.HighestMatch(glob.MustCompile("*"))
-	if highest != nil && manifest.ChannelByName("latest") == nil {
+func synthesise(m *AnnotatedManifest) {
+	highest, version := m.HighestMatch(glob.MustCompile("*"))
+	if highest != nil && m.ChannelByName("latest") == nil {
 		vstr := version.Major().String() + ".*"
-		manifest.Channels = append(manifest.Channels, ChannelBlock{
+		m.Channels = append(m.Channels, manifest.ChannelBlock{
 			Name:    "latest",
 			Update:  time.Hour * 24,
 			Version: vstr,
@@ -196,10 +200,10 @@ func synthesise(manifest *AnnotatedManifest) {
 	// Synthesise major and minor version channels.
 
 	// Order the stable versions
-	var versions Versions
-	for _, block := range manifest.Versions {
+	var versions manifest.Versions
+	for _, block := range m.Versions {
 		for _, vstr := range block.Version {
-			blockVersion := ParseVersion(vstr)
+			blockVersion := manifest.ParseVersion(vstr)
 			if blockVersion.Prerelease() != "" {
 				continue
 			}
@@ -227,7 +231,7 @@ func synthesise(manifest *AnnotatedManifest) {
 	}
 
 	for _, version := range channels {
-		manifest.Channels = append(manifest.Channels, ChannelBlock{
+		m.Channels = append(m.Channels, manifest.ChannelBlock{
 			Name:    version,
 			Update:  time.Hour * 24,
 			Version: version + ".*",

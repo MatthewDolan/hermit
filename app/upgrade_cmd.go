@@ -1,12 +1,12 @@
 package app
 
 import (
+	"github.com/cashapp/hermit/manifest/resolver"
 	"os"
 
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/shell"
 	"github.com/cashapp/hermit/ui"
 )
@@ -20,14 +20,14 @@ func (g *upgradeCmd) Run(l *ui.UI, env *hermit.Env) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	packages := []*manifest.Package{}
+	packages := []*resolver.Package{}
 	installed, err := env.ListInstalled(l)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if g.Packages != nil {
 		// check that the requested packages have been installed
-		packageNames := map[string]*manifest.Package{}
+		packageNames := map[string]*resolver.Package{}
 		for _, pkg := range installed {
 			packageNames[pkg.Reference.Name] = pkg
 		}

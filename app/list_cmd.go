@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"go/doc"
 	"os"
 	"sort"
@@ -27,8 +28,8 @@ type listCmd struct {
 	JSONFormattable
 }
 
-func buildListJSONResult(byName map[string][]*manifest.Package, names []string) interface{} {
-	packages := make([]*manifest.Package, 0)
+func buildListJSONResult(byName map[string][]*resolver.Package, names []string) interface{} {
+	packages := make([]*resolver.Package, 0)
 
 	for _, name := range names {
 		pg := byName[name]
@@ -67,8 +68,8 @@ func (cmd *listCmd) Run(l *ui.UI, env *hermit.Env) error {
 	return nil
 }
 
-func groupPackages(pkgs []*manifest.Package) (map[string][]*manifest.Package, []string) {
-	byName := map[string][]*manifest.Package{}
+func groupPackages(pkgs []*resolver.Package) (map[string][]*resolver.Package, []string) {
+	byName := map[string][]*resolver.Package{}
 	for _, pkg := range pkgs {
 		name := pkg.Reference.Name
 		byName[name] = append(byName[name], pkg)
@@ -83,9 +84,9 @@ func groupPackages(pkgs []*manifest.Package) (map[string][]*manifest.Package, []
 }
 
 // transformPackagesToJSON transforms the given grouped packages and ordered names into the output JSON struct
-type transformPackagesToJSON func(byName map[string][]*manifest.Package, names []string) interface{}
+type transformPackagesToJSON func(byName map[string][]*resolver.Package, names []string) interface{}
 
-func listPackagesInJSONFormat(pkgs manifest.Packages, option *listPackageOption) error {
+func listPackagesInJSONFormat(pkgs resolver.Packages, option *listPackageOption) error {
 	byName, names := groupPackages(pkgs)
 
 	val := option.TransformJSON(byName, names)
@@ -124,7 +125,7 @@ func sortSliceWithPrefix(names []string, prefix string) {
 	})
 }
 
-func listPackagesInCLI(pkgs manifest.Packages, option *listPackageOption) {
+func listPackagesInCLI(pkgs resolver.Packages, option *listPackageOption) {
 	byName, names := groupPackages(pkgs)
 	sortSliceWithPrefix(names, option.Prefix)
 
@@ -138,7 +139,7 @@ func listPackagesInCLI(pkgs manifest.Packages, option *listPackageOption) {
 	}
 }
 
-func printPackage(pkgs []*manifest.Package, option *listPackageOption, name string, w int) {
+func printPackage(pkgs []*resolver.Package, option *listPackageOption, name string, w int) {
 	var versions []string
 	for _, pkg := range pkgs {
 		if !option.AllVersions && !pkg.Linked {
@@ -165,7 +166,7 @@ func printPackage(pkgs []*manifest.Package, option *listPackageOption, name stri
 	doc.ToText(os.Stdout, pkgs[0].Description, "  ", "", w-2)
 }
 
-func listPackages(pkgs manifest.Packages, option *listPackageOption) error {
+func listPackages(pkgs resolver.Packages, option *listPackageOption) error {
 	if option.JSON {
 		return errors.WithStack(listPackagesInJSONFormat(pkgs, option))
 	}

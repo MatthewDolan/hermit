@@ -1,6 +1,7 @@
-package manifest
+package manifest_test
 
 import (
+	"github.com/cashapp/hermit/manifest/actions"
 	"os"
 	"testing"
 
@@ -8,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cashapp/hermit/envars"
+	. "github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/ui"
 )
@@ -19,7 +22,7 @@ func TestManifest(t *testing.T) {
 		pkg      string
 		os       string
 		arch     string
-		expected *Package
+		expected *resolver.Package
 		fail     string
 	}{
 		{name: "MultiVersionBlockSelectFirst",
@@ -30,7 +33,7 @@ func TestManifest(t *testing.T) {
 				version "1.13.5" "1.14.4" {}
 		`,
 			pkg: `go-1.13.5`,
-			expected: &Package{
+			expected: &resolver.Package{
 				Binaries:  []string{"bin/go"},
 				Reference: ParseReference("go-1.13.5"),
 				Source:    "https://golang.org/dl/go1.13.5.darwin-amd64.tar.gz",
@@ -44,7 +47,7 @@ func TestManifest(t *testing.T) {
 				version "1.13.5" "1.14.4" {}
 		`,
 			pkg: `go-1.14.4`,
-			expected: &Package{
+			expected: &resolver.Package{
 				Binaries:  []string{"bin/go"},
 				Reference: ParseReference("go-1.14.4"),
 				Source:    "https://golang.org/dl/go1.14.4.darwin-amd64.tar.gz",
@@ -63,7 +66,7 @@ func TestManifest(t *testing.T) {
 				version "1.14.4" {}
 				`,
 			pkg: "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Binaries:  []string{"bin/go"},
 				Reference: ParseReference("go-1.14.4"),
 				Env: []envars.Op{
@@ -86,7 +89,7 @@ func TestManifest(t *testing.T) {
 			`,
 			os:  "linux",
 			pkg: "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Reference: ParseReference("go-1.14.4"),
 				Binaries:  []string{"bin/go"},
 				Source:    "https://linux-golang.org/dl/go1.14.4.linux-amd64.tar.gz",
@@ -113,7 +116,7 @@ func TestManifest(t *testing.T) {
 			os:   "linux",
 			arch: "arm",
 			pkg:  "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Arch:      "arm",
 				Reference: ParseReference("go-1.14.4"),
 				Binaries:  []string{"bin/go"},
@@ -140,7 +143,7 @@ func TestManifest(t *testing.T) {
 			os:   "linux",
 			arch: "arm",
 			pkg:  "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Arch:      "arm",
 				Reference: ParseReference("go-1.14.4"),
 				Binaries:  []string{"bin/go"},
@@ -159,7 +162,7 @@ func TestManifest(t *testing.T) {
 			`,
 			os:  "linux",
 			pkg: "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Root:      "/tmp/hermit/go-1.14.4",
 				Reference: ParseReference("go-1.14.4"),
 				Binaries:  []string{"bin/go"},
@@ -175,7 +178,7 @@ func TestManifest(t *testing.T) {
 				version "1.14.4" {}
 			`,
 			pkg: "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Reference: ParseReference("go-1.14.4"),
 				Binaries:  []string{"bin/go"},
 				Source:    "https://golang.org/dl/go1.14.4.darwin-amd64.tar.gz",
@@ -215,7 +218,7 @@ func TestManifest(t *testing.T) {
 				version "1.14.4" {}
 			`,
 			pkg: "go-1.14.4",
-			expected: &Package{
+			expected: &resolver.Package{
 				Env: []envars.Op{
 					&envars.Set{"GOBIN", "/project/build"},
 					&envars.Prepend{"PATH", "${GOBIN}"},
@@ -239,7 +242,7 @@ func TestManifest(t *testing.T) {
 			if test.expected != nil {
 				test.expected.Description = "Go"
 				if test.expected.Files == nil {
-					test.expected.Files = []*ResolvedFileRef{}
+					test.expected.Files = []*resolver.ResolvedFileRef{}
 				}
 				if !test.expected.Reference.IsFullyQualified() {
 					test.expected.Reference = ParseReference(test.pkg)
@@ -248,13 +251,13 @@ func TestManifest(t *testing.T) {
 					test.expected.Root = "/tmp/hermit/" + test.expected.Reference.String()
 				}
 				if test.expected.Triggers == nil {
-					test.expected.Triggers = map[Event][]Action{}
+					test.expected.Triggers = map[actions.Event][]actions.Action{}
 				}
 			}
 			logger := ui.New(ui.LevelInfo, os.Stdout, os.Stderr, true, true)
-			resolver, err := New(sources.New("", []sources.Source{
+			resolver, err := resolver.New(sources.New("", []sources.Source{
 				sources.NewMemSource("go.hcl", test.manifest),
-			}), Config{
+			}), resolver.Config{
 				Env:   "/project",
 				State: "/tmp/hermit",
 				OS:    hos,

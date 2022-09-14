@@ -1,9 +1,9 @@
 package hermit
 
 import (
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/posener/complete"
 
-	"github.com/cashapp/hermit/manifest"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
 )
@@ -23,7 +23,7 @@ func NewPackagePredictor(s *state.State, e *Env, l *ui.UI) *PackagePredictor {
 func (p *PackagePredictor) Predict(args complete.Args) []string { // nolint: golint
 	p.l.SetLevel(ui.LevelFatal)
 
-	var pkgs []*manifest.Package
+	var pkgs []*resolver.Package
 	// if there is an error, just quietly return an empty list
 	if p.env == nil {
 		ps, _ := p.state.Search(p.l, ".*")
