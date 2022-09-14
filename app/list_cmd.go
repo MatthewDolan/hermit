@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"go/doc"
 	"os"
 	"sort"
@@ -15,6 +14,7 @@ import (
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/ui"
 )
 

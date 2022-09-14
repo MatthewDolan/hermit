@@ -2,13 +2,13 @@ package app
 
 import (
 	"fmt"
-	"github.com/cashapp/hermit/manifest/actions"
 	"os"
 
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
 	"github.com/cashapp/hermit/shell"
 	"github.com/cashapp/hermit/ui"
 )

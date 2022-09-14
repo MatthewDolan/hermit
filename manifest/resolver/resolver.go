@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"fmt"
-	"github.com/cashapp/hermit/manifest/actions"
 	"io/fs"
 	"os"
 	"path"
@@ -20,6 +19,7 @@ import (
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/internal/system"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
 	"github.com/cashapp/hermit/manifest/loader"
 	"github.com/cashapp/hermit/platform"
 	"github.com/cashapp/hermit/sources"

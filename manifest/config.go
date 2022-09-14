@@ -1,10 +1,11 @@
 package manifest
 
 import (
-	"github.com/gobwas/glob"
 	"reflect"
 	"regexp"
 	"time"
+
+	"github.com/gobwas/glob"
 
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"

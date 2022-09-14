@@ -1,9 +1,11 @@
 package resolver
 
 import (
-	"github.com/cashapp/hermit/manifest"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/cashapp/hermit/manifest"
 )
 
 func TestInferRepository(t *testing.T) {

@@ -1,13 +1,13 @@
 package manifesttest
 
 import (
-	"github.com/cashapp/hermit/manifest/actions"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"io/fs"
 	"time"
 
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/platform"
 )
 

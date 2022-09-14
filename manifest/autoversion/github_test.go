@@ -3,8 +3,9 @@ package autoversion
 import (
 	"testing"
 
-	"github.com/cashapp/hermit/manifest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/cashapp/hermit/manifest"
 )
 
 func TestGitHubVersions(t *testing.T) {

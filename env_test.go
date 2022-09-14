@@ -1,9 +1,6 @@
 package hermit_test
 
 import (
-	"github.com/cashapp/hermit/manifest/actions"
-	"github.com/cashapp/hermit/manifest/loader"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -18,7 +15,10 @@ import (
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/hermittest"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/loader"
 	"github.com/cashapp/hermit/manifest/manifesttest"
+	"github.com/cashapp/hermit/manifest/resolver"
 )
 
 // Test that when installing a package that has binaries conflicting

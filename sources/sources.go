@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"github.com/cashapp/hermit/util"
 	"io/fs"
 	"net/url"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/ui"
+	"github.com/cashapp/hermit/util"
 )
 
 // SyncFrequency determines how frequently sources will be synced.

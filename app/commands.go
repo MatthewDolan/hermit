@@ -1,8 +1,9 @@
 package app
 
 import (
-	"github.com/alecthomas/kong"
 	"time"
+
+	"github.com/alecthomas/kong"
 
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/ui"

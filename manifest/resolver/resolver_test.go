@@ -1,8 +1,6 @@
 package resolver_test
 
 import (
-	"github.com/cashapp/hermit/manifest"
-	"github.com/cashapp/hermit/manifest/actions"
 	"os"
 	"testing"
 	"time"
@@ -12,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cashapp/hermit/envars"
+	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
 	"github.com/cashapp/hermit/manifest/manifesttest"
 	. "github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/platform"

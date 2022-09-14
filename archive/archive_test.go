@@ -1,7 +1,6 @@
 package archive
 
 import (
-	"github.com/cashapp/hermit/manifest/resolver"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/ui"
 )
 

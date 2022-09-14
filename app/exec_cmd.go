@@ -1,7 +1,6 @@
 package app
 
 import (
-	"github.com/cashapp/hermit/manifest/resolver"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"github.com/cashapp/hermit/cache"
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
 	"github.com/cashapp/hermit/util/debug"

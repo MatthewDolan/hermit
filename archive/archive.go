@@ -8,7 +8,6 @@ import (
 	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"io"
 	"io/ioutil"
 	"os"
@@ -21,15 +20,15 @@ import (
 	"github.com/blakesmith/ar"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/klauspost/compress/zstd"
+	"github.com/otiai10/copy"
 	"github.com/saracen/go7z"
 	"github.com/sassoftware/go-rpmutils"
 	"github.com/xi2/xz"
 	"howett.net/plist"
 
-	"github.com/otiai10/copy"
-
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/internal/system"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/ui"
 	"github.com/cashapp/hermit/util"
 )

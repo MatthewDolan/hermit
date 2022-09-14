@@ -1,9 +1,9 @@
 package hermit
 
 import (
-	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/posener/complete"
 
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
 )

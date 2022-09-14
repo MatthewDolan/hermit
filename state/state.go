@@ -2,8 +2,6 @@ package state
 
 import (
 	"context"
-	"github.com/cashapp/hermit/manifest/actions"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,6 +14,8 @@ import (
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/internal/dao"
 	"github.com/cashapp/hermit/manifest"
+	"github.com/cashapp/hermit/manifest/actions"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/ui"
 	"github.com/cashapp/hermit/util"

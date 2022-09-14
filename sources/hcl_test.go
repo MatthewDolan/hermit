@@ -1,9 +1,10 @@
 package sources
 
 import (
-	"github.com/stretchr/testify/require"
 	"io/fs"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewHCLSource(t *testing.T) {

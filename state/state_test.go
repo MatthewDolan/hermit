@@ -1,7 +1,6 @@
 package state_test
 
 import (
-	"github.com/cashapp/hermit/manifest/actions"
 	"io"
 	"net/http"
 	"os"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/cashapp/hermit/manifest/actions"
 	"github.com/cashapp/hermit/manifest/manifesttest"
 	"github.com/cashapp/hermit/ui"
 )

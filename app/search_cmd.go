@@ -2,11 +2,11 @@ package app
 
 import (
 	"fmt"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"regexp"
 
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/errors"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
 )

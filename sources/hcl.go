@@ -2,6 +2,7 @@ package sources
 
 import (
 	"github.com/alecthomas/hcl"
+
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/manifest"
 )

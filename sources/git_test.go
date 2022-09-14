@@ -1,12 +1,14 @@
 package sources_test
 
 import (
+	"io/ioutil"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/cashapp/hermit/errors"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/ui"
-	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"testing"
 )
 
 type FailingGit struct {

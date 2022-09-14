@@ -1,13 +1,13 @@
 package app
 
 import (
-	"github.com/cashapp/hermit/manifest/loader"
-	"github.com/cashapp/hermit/manifest/resolver"
 	"runtime"
 	"strconv"
 
 	"github.com/cashapp/hermit"
 	"github.com/cashapp/hermit/errors"
+	"github.com/cashapp/hermit/manifest/loader"
+	"github.com/cashapp/hermit/manifest/resolver"
 	"github.com/cashapp/hermit/sources"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"

@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"github.com/cashapp/hermit/manifest/actions"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"github.com/cashapp/hermit/cache"
 	"github.com/cashapp/hermit/envars"
 	"github.com/cashapp/hermit/errors"
+	"github.com/cashapp/hermit/manifest/actions"
 	"github.com/cashapp/hermit/shell"
 	"github.com/cashapp/hermit/state"
 	"github.com/cashapp/hermit/ui"
