@@ -236,6 +236,7 @@ func Main(config Config) {
 	configureLogging(cli, ctx.Command(), p)
 
 	config.State.LockTimeout = cli.getLockTimeout()
+	config.State.PackageOverrides = cli.getPackageOverrides()
 	sta, err = state.Open(hermit.UserStateDir, config.State, cache)
 	if err != nil {
 		log.Fatalf("failed to open state: %s", err)

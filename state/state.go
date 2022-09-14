@@ -46,8 +46,9 @@ type Config struct {
 	// Auto-generated mirrors.
 	AutoMirrors []AutoMirror
 	// Builtin sources.
-	Builtin     *sources.BuiltInSource
-	LockTimeout time.Duration
+	Builtin          *sources.BuiltInSource
+	LockTimeout      time.Duration
+	PackageOverrides string
 }
 
 // State is the global hermit state shared between all local environments
@@ -201,6 +202,15 @@ func (s *State) Sources(l *ui.UI) (*sources.Sources, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	if overridesHCL := s.config.PackageOverrides; overridesHCL != "" {
+		overrides, err := sources.NewHCLSource([]byte(overridesHCL))
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		ss.Prepend(overrides)
+	}
+
 	ss.Prepend(s.config.Builtin)
 	return ss, nil
 }
