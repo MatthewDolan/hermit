@@ -288,6 +288,17 @@ func (m *Manifest) References(name string) References {
 	return refs
 }
 
+// Manifests is a single hcl definition for multiple manifests.
+type Manifests struct {
+	Packages []*PackageBlock `hcl:"package,block" help:"Definition of and configuration for a specific package."`
+}
+
+// PackageBlock is a block in a Manifests file with the name of a package and it's package definition.
+type PackageBlock struct {
+	Name string `hcl:"name,label" help:"Name of the package."`
+	Manifest
+}
+
 // Layers is a list of individual `Layer`s.
 type Layers []*Layer
 
